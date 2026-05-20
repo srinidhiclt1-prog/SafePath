@@ -35,4 +35,14 @@ public class SafeSpotController {
     public List<SafeSpot> getSafeSpotsByType(@PathVariable String type) {
         return safeSpotService.getSafeSpotsByType(type);
     }
+
+    @GetMapping("/safety/{score}")
+    public List<SafeSpot> getSafeSpotsWithHighSafety(@PathVariable int score) {
+        return safeSpotService.getSafeSpotsWithHighSafety(score);
+    }
+
+    @GetMapping("/nearby")
+    public List<SafeSpot> getNearbySafeSpots(@RequestParam double lat, @RequestParam double lon) {
+        return safeSpotService.getNearbySafeSpots(lat, lon);
+    }
 }

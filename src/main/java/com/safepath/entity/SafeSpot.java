@@ -23,6 +23,21 @@ public class SafeSpot {
     public SafeSpot() {
     }
 
+    public SafeSpot(String name, String type, String address, String city, String state,
+                    String country, double latitude, double longitude,
+                    String description, int safetyScore) {
+        this.name = name;
+        this.type = type;
+        this.address = address;
+        this.city = city;
+        this.state = state;
+        this.country = country;
+        this.latitude = latitude;
+        this.longitude = longitude;
+        this.description = description;
+        this.safetyScore = safetyScore;
+    }
+
     public Long getId() {
         return id;
     }
