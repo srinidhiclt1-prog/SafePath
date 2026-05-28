@@ -8,6 +8,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/safespots")
+@CrossOrigin(origins = "http://localhost:3000")
 public class SafeSpotController {
 
     private final SafeSpotService safeSpotService;

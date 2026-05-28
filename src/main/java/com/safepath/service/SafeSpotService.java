@@ -34,10 +34,10 @@ public class SafeSpotService {
         List<SafeSpot> allSafeSpots = this.getAllSafeSpots();
 
         allSafeSpots.sort((spot1, spot2) -> {
-            double distance1 = calculateDistance(lat, lon, spot1.getLatitude(), spot1.getLongitude());
-            double distance2 = calculateDistance(lat, lon, spot2.getLatitude(), spot2.getLongitude());
+            double score1 = calculateRecommendationScore(spot1, lat, lon);
+            double score2 = calculateRecommendationScore(spot2, lat, lon);
 
-            return Double.compare(distance1, distance2);
+            return Double.compare(score2, score1);
         });
 
         return allSafeSpots.stream().limit(5).toList();
@@ -45,6 +45,30 @@ public class SafeSpotService {
 
     public List<SafeSpot> getSafeSpotsWithHighSafety(int score) {
         return safeSpotRepository.findBySafetyScoreGreaterThan(score);
+    }
+
+    private double calculateRecommendationScore(SafeSpot spot, double userLat, double userLon) {
+        double distance = calculateDistance(userLat, userLon, spot.getLatitude(), spot.getLongitude());
+
+        int categoryBonus = 0;
+
+        if (spot.getType().equals("Shelter")) {
+            categoryBonus = 18;
+        }
+        else if (spot.getType().equals("Police Station")) {
+            categoryBonus = 15;
+        }
+        else if (spot.getType().equals("Hospital")) {
+            categoryBonus = 12;
+        }
+        else if (spot.getType().equals("Library")) {
+            categoryBonus = 10;
+        }
+        else if (spot.getType().equals("Safe Transit Hub")) {
+            categoryBonus = 8;
+        }
+
+        return spot.getSafetyScore() + categoryBonus - (distance * 100);
     }
 
     //Helper Methods
