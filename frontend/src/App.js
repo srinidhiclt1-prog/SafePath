@@ -12,6 +12,9 @@ function App() {
     const [userLocation, setUserLocation] = useState(null);
     const [selectedSafeSpot, setSelectedSafeSpot] = useState(null);
     const [manualLocation, setManualLocation] = useState("");
+    const [routeCoordinates, setRouteCoordinates] = useState([]);
+    const [routeDistance, setRouteDistance] = useState(null);
+    const [routeDuration, setRouteDuration] = useState(null);
 
     const hospitalIcon = new L.Icon({
         iconUrl: "https://cdn-icons-png.flaticon.com/512/2966/2966327.png",
@@ -129,6 +132,48 @@ function App() {
             .then(data => setSafeSpots(Array.isArray(data) ? data : []));
     }
 
+    async function loadRoute(spot) {
+        setSelectedSafeSpot(spot);
+
+        setRouteDistance(null);
+        setRouteDuration(null);
+
+        if (!userLocation) {
+            alert("Please select a location first.");
+            return;
+        }
+
+        const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImMwZDRmYTM3NDQyNzRjODc4NTBkY2M5ZTIwNjZhZDM0IiwiaCI6Im11cm11cjY0In0=";
+
+        const response = await fetch("https://api.openrouteservice.org/v2/directions/foot-walking/geojson", {
+            method: "POST",
+            headers: {
+                "Authorization": apiKey,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                coordinates: [
+                    [userLocation[1], userLocation[0]],
+                    [spot.longitude, spot.latitude]
+                ]
+            })
+        });
+
+        const data = await response.json();
+
+        const summary = data.features[0].properties.summary;
+
+        setRouteDistance((summary.distance / 1609.34).toFixed(2));
+        setRouteDuration(Math.round(summary.duration / 60));
+
+        const coordinates = data.features[0].geometry.coordinates.map((coord) => [
+            coord[1],
+            coord[0]
+        ]);
+
+        setRouteCoordinates(coordinates);
+    }
+
     return (
         <div className="app">
             <h1>SafePath</h1>
@@ -181,6 +226,14 @@ function App() {
                     <p>{selectedSafeSpot.type}</p>
                     <p>Safety Score: {selectedSafeSpot.safetyScore}</p>
 
+                    {routeDistance && (
+                        <p>Distance: {routeDistance} miles</p>
+                    )}
+
+                    {routeDuration && (
+                        <p>Estimated Walk: {routeDuration} minutes</p>
+                    )}
+
                     <button onClick={() => setSelectedSafeSpot(null)}>
                         Clear Route
                     </button>
@@ -207,10 +260,14 @@ function App() {
 
                 {userLocation && selectedSafeSpot && (
                     <Polyline
-                        positions={[
-                            userLocation,
-                            [selectedSafeSpot.latitude, selectedSafeSpot.longitude]
-                        ]}
+                        positions={
+                            routeCoordinates.length > 0
+                                ? routeCoordinates
+                                : [
+                                    userLocation,
+                                    [selectedSafeSpot.latitude, selectedSafeSpot.longitude]
+                                ]
+                        }
                         pathOptions={{
                             color: "blue",
                             weight: 6
@@ -256,7 +313,7 @@ function App() {
                     <p>{spot.city}</p>
                     <p>Safety Score: {spot.safetyScore}</p>
 
-                    <button onClick={() => setSelectedSafeSpot(spot)}>
+                    <button onClick={() => loadRoute(spot)}>
                         Route Me Here
                     </button>
                 </div>
