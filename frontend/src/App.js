@@ -17,13 +17,13 @@ function App() {
     const [routeDuration, setRouteDuration] = useState(null);
 
     const hospitalIcon = new L.Icon({
-        iconUrl: "https://cdn-icons-png.flaticon.com/512/2966/2966327.png",
+        iconUrl: "https://cdn-icons-png.flaticon.com/512/4320/4320371.png",
         iconSize: [32, 32]
     });
 
     const policeIcon = new L.Icon({
         iconUrl: "https://cdn-icons-png.flaticon.com/512/1995/1995574.png",
-        iconSize: [32, 32]
+        iconSize: [36, 36]
     });
 
     const libraryIcon = new L.Icon({
@@ -31,9 +31,17 @@ function App() {
         iconSize: [32, 32]
     });
 
+    const shelterIcon = new L.Icon({
+        iconUrl: "https://cdn-icons-png.flaticon.com/512/619/619153.png",
+        iconSize: [32, 32]
+    });
+
+
+
     function getIcon(type) {
         if (type === "Hospital") return hospitalIcon;
-        if (type === "Police Station") return policeIcon;
+        if (type === "Police" || type === "Police Station") return policeIcon;
+        if (type === "Shelter") return shelterIcon;
         if (type === "Library") return libraryIcon;
         return libraryIcon;
     }
@@ -67,6 +75,18 @@ function App() {
 
     function loadLibraries() {
         fetch("http://localhost:8080/safespots/type/Library")
+            .then(response => response.json())
+            .then(data => setSafeSpots(Array.isArray(data) ? data : []));
+    }
+
+    function loadPoliceStations() {
+        fetch("http://localhost:8080/safespots/type/Police Station")
+            .then(response => response.json())
+            .then(data => setSafeSpots(Array.isArray(data) ? data : []));
+    }
+
+    function loadShelters() {
+        fetch("http://localhost:8080/safespots/type/Shelter")
             .then(response => response.json())
             .then(data => setSafeSpots(Array.isArray(data) ? data : []));
     }
@@ -132,6 +152,21 @@ function App() {
             .then(data => setSafeSpots(Array.isArray(data) ? data : []));
     }
 
+    function openInGoogleMaps() {
+        if (!userLocation || !selectedSafeSpot) {
+            alert("Please select a route first.");
+            return;
+        }
+
+        const origin = `${userLocation[0]},${userLocation[1]}`;
+        const destination = `${selectedSafeSpot.latitude},${selectedSafeSpot.longitude}`;
+
+        window.open(
+            `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=walking`,
+            "_blank"
+        );
+    }
+
     async function loadRoute(spot) {
         setSelectedSafeSpot(spot);
 
@@ -179,46 +214,66 @@ function App() {
             <h1>SafePath</h1>
             <p>NYC Safety Navigation Platform</p>
 
-            <button className="safe-exit" onClick={safeExit}>
-                Quick Exit
-            </button>
+                <button className="safe-exit" onClick={safeExit}>
+                    Quick Exit
+                </button>
 
-            <button onClick={loadHighSafetySpots}>
-                Show High Safety Spots
-            </button>
+            <div className="controls">
 
-            <button onClick={loadAllSafeSpots}>All</button>
-            <button onClick={loadHospitals}>Hospitals</button>
-            <button onClick={loadLibraries}>Libraries</button>
-            <button onClick={loadHighSafetySpots}>High Safety</button>
-            <button onClick={loadNearbySafeSpots}>
-                Nearby Safe Spots
-            </button>
-            <button onClick={useMyLocation}>
-                Use My Location
-            </button>
+            <div className="control-section">
+                    <span className="control-label">Filters:</span>
 
-            <input
-                type="text"
-                placeholder="Enter city"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-            />
+                    <button onClick={loadAllSafeSpots}>All</button>
+                    <button onClick={loadHospitals}>Hospitals</button>
+                    <button onClick={loadLibraries}>Libraries</button>
+                    <button onClick={loadPoliceStations}>Police</button>
+                    <button onClick={loadShelters}>Shelters</button>
+                    <button onClick={loadHighSafetySpots}>High Safety</button>
+                </div>
 
-            <button onClick={searchByCity}>
-                Search City
-            </button>
+                <div className="control-section">
+                    <span className="control-label">Location:</span>
 
-            <input
-                type="text"
-                placeholder="Enter your location"
-                value={manualLocation}
-                onChange={(e) => setManualLocation(e.target.value)}
-            />
+                    <button onClick={loadNearbySafeSpots}>
+                        Nearby Safe Spots
+                    </button>
 
-            <button onClick={useEnteredLocation}>
-                Use Entered Location
-            </button>
+                    <button onClick={useMyLocation}>
+                        Use My Location
+                    </button>
+                </div>
+
+                <div className="control-section">
+                    <span className="control-label">Search:</span>
+
+                    <input
+                        type="text"
+                        placeholder="Enter city"
+                        value={city}
+                        onChange={(e) => setCity(e.target.value)}
+                    />
+
+                    <button onClick={searchByCity}>
+                        Search City
+                    </button>
+                </div>
+
+
+                <div className="control-section">
+                    <span className="control-label">Manual:</span>
+
+                    <input
+                        type="text"
+                        placeholder="Enter your location"
+                        value={manualLocation}
+                        onChange={(e) => setManualLocation(e.target.value)}
+                    />
+
+                    <button onClick={useEnteredLocation}>
+                        Use Entered Location
+                    </button>
+                </div>
+            </div>
 
             {selectedSafeSpot && (
                 <div className="selected-route">
@@ -236,6 +291,10 @@ function App() {
 
                     <button onClick={() => setSelectedSafeSpot(null)}>
                         Clear Route
+                    </button>
+
+                    <button onClick={openInGoogleMaps}>
+                        Open in Google Maps
                     </button>
                 </div>
             )}
