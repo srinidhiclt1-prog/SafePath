@@ -121,3 +121,24 @@ h1 {
   font-size: 3.2rem;
   margin-bottom: 10px;
 }
+
+.selected-route h2 {
+  margin-top: 0;
+  color: #1d4ed8;
+}
+
+.route-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.route-buttons button {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  background-color: #3a86ff;
+  color: white;
+  font-weight: bold;
+}

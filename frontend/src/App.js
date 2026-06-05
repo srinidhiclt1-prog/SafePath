@@ -3,6 +3,10 @@ import "./App.css";
 import "leaflet/dist/leaflet.css";
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
 import L from "leaflet";
+import hospitalIconImage from "./assets/hospital.png";
+import policeIconImage from "./assets/police.png";
+import libraryIconImage from "./assets/library.png";
+import shelterIconImage from "./assets/shelter.png";
 
 function App() {
 
@@ -15,25 +19,28 @@ function App() {
     const [routeCoordinates, setRouteCoordinates] = useState([]);
     const [routeDistance, setRouteDistance] = useState(null);
     const [routeDuration, setRouteDuration] = useState(null);
+    const [destinationInput, setDestinationInput] = useState("");
+    const [safeRouteScore, setSafeRouteScore] = useState(null);
+    const [nearbyRouteSpots, setNearbyRouteSpots] = useState([]);
 
     const hospitalIcon = new L.Icon({
-        iconUrl: "https://cdn-icons-png.flaticon.com/512/4320/4320371.png",
-        iconSize: [32, 32]
+        iconUrl: hospitalIconImage,
+        iconSize: [36, 36]
     });
 
     const policeIcon = new L.Icon({
-        iconUrl: "https://cdn-icons-png.flaticon.com/512/1995/1995574.png",
+        iconUrl: policeIconImage,
         iconSize: [36, 36]
     });
 
     const libraryIcon = new L.Icon({
-        iconUrl: "https://cdn-icons-png.flaticon.com/512/2232/2232688.png",
-        iconSize: [32, 32]
+        iconUrl: libraryIconImage,
+        iconSize: [36, 36]
     });
 
     const shelterIcon = new L.Icon({
-        iconUrl: "https://cdn-icons-png.flaticon.com/512/619/619153.png",
-        iconSize: [32, 32]
+        iconUrl: shelterIconImage,
+        iconSize: [36, 36]
     });
 
 
@@ -167,6 +174,28 @@ function App() {
         );
     }
 
+    async function geocodeDestination(destination) {
+        const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImMwZDRmYTM3NDQyNzRjODc4NTBkY2M5ZTIwNjZhZDM0IiwiaCI6Im11cm11cjY0In0=";
+
+        const response = await fetch(
+            `https://api.openrouteservice.org/geocode/search?api_key=${apiKey}&text=${encodeURIComponent(destination)}&boundary.country=US&boundary.rect.min_lon=-74.2591&boundary.rect.min_lat=40.4774&boundary.rect.max_lon=-73.7004&boundary.rect.max_lat=40.9176`
+        );
+
+        const data = await response.json();
+
+        if (!data.features || data.features.length === 0) {
+            alert("Destination not found in NYC.");
+            return null;
+        }
+
+        const coordinates = data.features[0].geometry.coordinates;
+
+        return {
+            latitude: coordinates[1],
+            longitude: coordinates[0]
+        };
+    }
+
     async function loadRoute(spot) {
         setSelectedSafeSpot(spot);
 
@@ -177,6 +206,8 @@ function App() {
             alert("Please select a location first.");
             return;
         }
+
+
 
         const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImMwZDRmYTM3NDQyNzRjODc4NTBkY2M5ZTIwNjZhZDM0IiwiaCI6Im11cm11cjY0In0=";
 
@@ -198,6 +229,23 @@ function App() {
 
         const summary = data.features[0].properties.summary;
 
+        const distanceMiles = summary.distance / 1609.34;
+        const durationMinutes = Math.round(summary.duration / 60);
+
+        setRouteDistance(distanceMiles.toFixed(2));
+        setRouteDuration(durationMinutes);
+
+        const distanceScore = Math.max(0, 40 - distanceMiles * 10);
+        const safeSpotBonus = Math.min(safeSpots.length * 3, 30);
+        const baseScore = 30;
+
+        const score = Math.max(
+            0,
+            Math.min(100, baseScore + distanceScore + safeSpotBonus)
+        );
+
+        setSafeRouteScore(Math.round(score));
+
         setRouteDistance((summary.distance / 1609.34).toFixed(2));
         setRouteDuration(Math.round(summary.duration / 60));
 
@@ -207,6 +255,36 @@ function App() {
         ]);
 
         setRouteCoordinates(coordinates);
+    }
+
+    async function findSafeRoute() {
+        if (!userLocation) {
+            alert("Please select your location first.");
+            return;
+        }
+
+        if (!destinationInput) {
+            alert("Please enter a destination.");
+            return;
+        }
+
+        const destination = await geocodeDestination(destinationInput);
+
+        if (!destination) {
+            return;
+        }
+
+        const destinationSpot = {
+            name: destinationInput,
+            type: "Destination",
+            address: destinationInput,
+            city: "New York City",
+            latitude: destination.latitude,
+            longitude: destination.longitude,
+            safetyScore: "Calculating"
+        };
+
+        loadRoute(destinationSpot);
     }
 
     return (
@@ -273,29 +351,57 @@ function App() {
                         Use Entered Location
                     </button>
                 </div>
+
+                <div className="control-section">
+                    <span className="control-label">SafeRoute:</span>
+
+                    <input
+                        type="text"
+                        placeholder="Enter destination"
+                        value={destinationInput}
+                        onChange={(e) => setDestinationInput(e.target.value)}
+                    />
+
+                    <button onClick={findSafeRoute}>
+                        Find SafeRoute
+                    </button>
+                </div>
             </div>
 
             {selectedSafeSpot && (
                 <div className="selected-route">
-                    <h3>Routing to: {selectedSafeSpot.name}</h3>
-                    <p>{selectedSafeSpot.type}</p>
-                    <p>Safety Score: {selectedSafeSpot.safetyScore}</p>
+                    <h2>Route Details</h2>
+
+                    <h3>{selectedSafeSpot.name}</h3>
+
+                    <p><strong>Type:</strong> {selectedSafeSpot.type}</p>
+                    <p><strong>Address:</strong> {selectedSafeSpot.address}</p>
+                    <p><strong>City:</strong> {selectedSafeSpot.city}</p>
+                    <p><strong>Safety Score:</strong> {selectedSafeSpot.safetyScore}</p>
 
                     {routeDistance && (
-                        <p>Distance: {routeDistance} miles</p>
+                        <p><strong>Distance:</strong> {routeDistance} miles</p>
                     )}
 
                     {routeDuration && (
-                        <p>Estimated Walk: {routeDuration} minutes</p>
+                        <p><strong>Estimated Walk:</strong> {routeDuration} minutes</p>
                     )}
 
-                    <button onClick={() => setSelectedSafeSpot(null)}>
-                        Clear Route
-                    </button>
+                    {safeRouteScore !== null && (
+                        <p>
+                            <strong>SafeRoute Score:</strong> {safeRouteScore}/100
+                        </p>
+                    )}
 
-                    <button onClick={openInGoogleMaps}>
-                        Open in Google Maps
-                    </button>
+                    <div className="route-buttons">
+                        <button onClick={openInGoogleMaps}>
+                            Open in Google Maps
+                        </button>
+
+                        <button onClick={() => setSelectedSafeSpot(null)}>
+                            Clear Route
+                        </button>
+                    </div>
                 </div>
             )}
 

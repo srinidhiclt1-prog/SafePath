@@ -249,4 +249,64 @@ public class DataLoader implements CommandLineRunner {
                 "Major transit hub with high visibility",
                 86
         ));
+
+        safeSpotRepository.save(
+                new SafeSpot(
+                        "NYPD Midtown South Precinct",
+                        "Police",
+                        "357 W 35th St",
+                        "New York",
+                        "NY",
+                        "USA",
+                        40.7535,
+                        -73.9934,
+                        "24-hour police station",
+                        98
+                )
+        );
+
+        safeSpotRepository.save(
+                new SafeSpot(
+                        "NYPD Times Square Precinct",
+                        "Police",
+                        "229 W 43rd St",
+                        "New York",
+                        "NY",
+                        "USA",
+                        40.7570,
+                        -73.9890,
+                        "Police assistance and emergency response",
+                        97
+                )
+        );
+
+        safeSpotRepository.save(
+                new SafeSpot(
+                        "Safe Horizon Shelter",
+                        "Shelter",
+                        "2 Lafayette St",
+                        "New York",
+                        "NY",
+                        "USA",
+                        40.7138,
+                        -74.0045,
+                        "Emergency shelter and crisis support",
+                        95
+                )
+        );
+
+        safeSpotRepository.save(
+                new SafeSpot(
+                        "Youth Shelter NYC",
+                        "Shelter",
+                        "120 W 125th St",
+                        "New York",
+                        "NY",
+                        "USA",
+                        40.8080,
+                        -73.9470,
+                        "Youth shelter and support services",
+                        92
+                )
+        );
 }}
