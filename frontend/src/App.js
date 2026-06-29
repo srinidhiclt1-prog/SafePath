@@ -132,24 +132,37 @@ function App() {
         window.location.href = "https://www.google.com";
     }
 
-    function useEnteredLocation() {
-        const locations = {
-            "times square": [40.7580, -73.9855],
-            "grand central": [40.7527, -73.9772],
-            "bryant park": [40.7536, -73.9832],
-            "central park": [40.7812, -73.9665],
-            "brooklyn bridge": [40.7061, -73.9969]
+    async function geocodeLocation(locationName) {
+        const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImMwZDRmYTM3NDQyNzRjODc4NTBkY2M5ZTIwNjZhZDM0IiwiaCI6Im11cm11cjY0In0=";
+
+        const response = await fetch(
+            `https://api.openrouteservice.org/geocode/search?api_key=${apiKey}&text=${encodeURIComponent(locationName)}`
+        );
+
+        const data = await response.json();
+
+        if (!data.features || data.features.length === 0) {
+            return null;
+        }
+
+        const coordinates = data.features[0].geometry.coordinates;
+
+        return {
+            lat: coordinates[1],
+            lon: coordinates[0]
         };
+    }
 
-        const coordinates = locations[manualLocation.toLowerCase()];
+    async function useEnteredLocation() {
+        const result = await geocodeLocation(manualLocation);
 
-        if (!coordinates) {
-            alert("Location not found yet. Try: Times Square, Grand Central, Bryant Park, Central Park, or Brooklyn Bridge.");
+        if (!result) {
+            alert("Location not found.");
             return;
         }
 
-        const lat = coordinates[0];
-        const lon = coordinates[1];
+        const lat = result.lat;
+        const lon = result.lon;
 
         setMapCenter([lat, lon]);
         setUserLocation([lat, lon]);
