@@ -142,3 +142,56 @@ h1 {
   color: white;
   font-weight: bold;
 }
+
+.nearby-route-spots {
+  margin-top: 12px;
+  padding: 12px;
+  background-color: white;
+  border-radius: 10px;
+}
+
+.nearby-route-spot {
+  padding: 8px 0;
+  border-bottom: 1px solid #ddd;
+}
+
+.nearby-route-spot:last-child {
+  border-bottom: none;
+}
+
+.nearby-route-spot p {
+  margin: 4px 0 0;
+}
+
+.nearby-route-spot button {
+  margin-top: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  background-color: #3a86ff;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.score-breakdown {
+  margin-top: 12px;
+  padding: 12px;
+  background-color: #f0f7ff;
+  border-radius: 10px;
+  border-left: 5px solid #3a86ff;
+}
+
+.score-breakdown h4 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.score-breakdown p {
+  margin: 5px 0;
+}
+
+.safety-badge {
+  font-weight: bold;
+  margin-top: 4px;
+}

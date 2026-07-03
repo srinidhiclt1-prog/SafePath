@@ -22,6 +22,7 @@ function App() {
     const [destinationInput, setDestinationInput] = useState("");
     const [safeRouteScore, setSafeRouteScore] = useState(null);
     const [nearbyRouteSpots, setNearbyRouteSpots] = useState([]);
+    const [scoreExplanation, setScoreExplanation] = useState(null);
 
     const hospitalIcon = new L.Icon({
         iconUrl: hospitalIconImage,
@@ -144,12 +145,12 @@ function App() {
         if (!data.features || data.features.length === 0) {
             return null;
         }
-
         const coordinates = data.features[0].geometry.coordinates;
 
         return {
             lat: coordinates[1],
             lon: coordinates[0]
+
         };
     }
 
@@ -209,6 +210,27 @@ function App() {
         };
     }
 
+    function getSafeSpotsNearRoute(routeCoordinates) {
+        return safeSpots.filter((spot) =>
+            routeCoordinates.some((coord) => {
+                const routeLat = coord[0];
+                const routeLon = coord[1];
+
+                const latDiff = Math.abs(routeLat - spot.latitude);
+                const lonDiff = Math.abs(routeLon - spot.longitude);
+
+                return latDiff < 0.005 && lonDiff < 0.005;
+            })
+        );
+    }
+
+    function getSafetyBadge(score) {
+        if (score >= 95) return "🟢 Very Safe";
+        if (score >= 90) return "🟡 Safe";
+        if (score >= 80) return "🟠 Use Caution";
+        return "🔴 Higher Risk";
+    }
+
     async function loadRoute(spot) {
         setSelectedSafeSpot(spot);
 
@@ -242,32 +264,84 @@ function App() {
 
         const summary = data.features[0].properties.summary;
 
+        const coordinates = data.features[0].geometry.coordinates.map((coord) => [
+            coord[1],
+            coord[0]
+        ]);
+
         const distanceMiles = summary.distance / 1609.34;
         const durationMinutes = Math.round(summary.duration / 60);
 
         setRouteDistance(distanceMiles.toFixed(2));
         setRouteDuration(durationMinutes);
 
-        const distanceScore = Math.max(0, 40 - distanceMiles * 10);
-        const safeSpotBonus = Math.min(safeSpots.length * 3, 30);
-        const baseScore = 30;
+        const nearbySpots = getSafeSpotsNearRoute(coordinates).sort(
+            (a, b) => b.safetyScore - a.safetyScore
+        );
+        setNearbyRouteSpots(nearbySpots);
+
+        const typeWeights = {
+            "Police": 20,
+            "Police Station": 20,
+            "Hospital": 18,
+            "Shelter": 15,
+            "Library": 8
+        };
+
+        const typeBonus = nearbySpots.reduce((total, spot) => {
+            return total + (typeWeights[spot.type] || 5);
+        }, 0);
+
+        const qualityBonus = nearbySpots.reduce((total, spot) => {
+            return total + ((spot.safetyScore || 0) / 100) * 5;
+        }, 0);
+
+        const uniqueTypes = new Set(nearbySpots.map((spot) => spot.type));
+        const diversityBonus = uniqueTypes.size * 5;
+
+        const distancePenalty = distanceMiles * 15;
 
         const score = Math.max(
             0,
-            Math.min(100, baseScore + distanceScore + safeSpotBonus)
+            Math.min(
+                100,
+                30 + typeBonus + qualityBonus + diversityBonus - distancePenalty
+            )
         );
 
         setSafeRouteScore(Math.round(score));
 
-        setRouteDistance((summary.distance / 1609.34).toFixed(2));
-        setRouteDuration(Math.round(summary.duration / 60));
+        const hasPolice = nearbySpots.some(
+            spot => spot.type === "Police" || spot.type === "Police Station"
+        );
 
-        const coordinates = data.features[0].geometry.coordinates.map((coord) => [
-            coord[1],
-            coord[0]
-        ]);
+        const hasHospital = nearbySpots.some(
+            spot => spot.type === "Hospital"
+        );
+
+        const hasShelter = nearbySpots.some(
+            spot => spot.type === "Shelter"
+        );
+
+        const hasLibrary = nearbySpots.some(
+            spot => spot.type === "Library"
+        );
+
+        const diverseResources = uniqueTypes.size >= 3;
+
+        const shortWalk = distanceMiles <= 1;
+
+        setScoreExplanation({
+            hasPolice,
+            hasHospital,
+            hasShelter,
+            hasLibrary,
+            diverseResources,
+            shortWalk
+        });
 
         setRouteCoordinates(coordinates);
+
     }
 
     async function findSafeRoute() {
@@ -404,6 +478,41 @@ function App() {
                         <p>
                             <strong>SafeRoute Score:</strong> {safeRouteScore}/100
                         </p>
+                    )}
+
+                    {scoreExplanation && (
+                        <div className="score-breakdown">
+                            <h4>Why this score?</h4>
+
+                            <p>🚔 Police Protection: {scoreExplanation.hasPolice ? "✓" : "✗"}</p>
+                            <p>🏥 Medical Access: {scoreExplanation.hasHospital ? "✓" : "✗"}</p>
+                            <p>🏠 Shelter Nearby: {scoreExplanation.hasShelter ? "✓" : "✗"}</p>
+                            <p>📚 Public Safe Spaces: {scoreExplanation.hasLibrary ? "✓" : "✗"}</p>
+                            <p>🌟 Diverse Resources: {scoreExplanation.diverseResources ? "✓" : "✗"}</p>
+                            <p>🚶 Short Walking Distance: {scoreExplanation.shortWalk ? "✓" : "✗"}</p>
+                        </div>
+                    )}
+
+                    <p>
+                        <strong>SafeSpots Near Route:</strong> {nearbyRouteSpots.length}
+                    </p>
+
+                    {nearbyRouteSpots.length > 0 && (
+                        <div className="nearby-route-spots">
+                            <h4>SafeSpots Along This Route</h4>
+
+                            {nearbyRouteSpots.map((spot) => (
+                                <div className="nearby-route-spot" key={spot.id}>
+                                    <strong>{spot.name}</strong>
+                                    <p>{spot.type} • Safety Score: {spot.safetyScore}</p>
+                                    <p className="safety-badge">{getSafetyBadge(spot.safetyScore)}</p>
+
+                                    <button onClick={() => loadRoute(spot)}>
+                                        Route Here
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
                     )}
 
                     <div className="route-buttons">
