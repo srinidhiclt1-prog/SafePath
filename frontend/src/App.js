@@ -1,12 +1,25 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 import "leaflet/dist/leaflet.css";
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
-import L from "leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";import L from "leaflet";
 import hospitalIconImage from "./assets/hospital.png";
 import policeIconImage from "./assets/police.png";
 import libraryIconImage from "./assets/library.png";
 import shelterIconImage from "./assets/shelter.png";
+
+function FitMapToRoute({ routeCoordinates }) {
+    const map = useMap();
+
+    useEffect(() => {
+        if (routeCoordinates.length > 0) {
+            map.fitBounds(routeCoordinates, {
+                padding: [40, 40]
+            });
+        }
+    }, [routeCoordinates, map]);
+
+    return null;
+}
 
 function App() {
 
@@ -23,6 +36,8 @@ function App() {
     const [safeRouteScore, setSafeRouteScore] = useState(null);
     const [nearbyRouteSpots, setNearbyRouteSpots] = useState([]);
     const [scoreExplanation, setScoreExplanation] = useState(null);
+    const [routeOptions, setRouteOptions] = useState([]);
+    const [selectedRouteId, setSelectedRouteId] = useState(null);
 
     const hospitalIcon = new L.Icon({
         iconUrl: hospitalIconImage,
@@ -256,92 +271,136 @@ function App() {
                 coordinates: [
                     [userLocation[1], userLocation[0]],
                     [spot.longitude, spot.latitude]
-                ]
+                ],
+                alternative_routes: {
+                    target_count: 3,
+                    weight_factor: 1.4,
+                    share_factor: 0.6
+                }
             })
         });
 
         const data = await response.json();
 
-        const summary = data.features[0].properties.summary;
+        const routeChoices = data.features.map((feature, index) => {
+            const summary = feature.properties.summary;
 
-        const coordinates = data.features[0].geometry.coordinates.map((coord) => [
-            coord[1],
-            coord[0]
-        ]);
+            const coordinates = feature.geometry.coordinates.map((coord) => [
+                coord[1],
+                coord[0]
+            ]);
 
-        const distanceMiles = summary.distance / 1609.34;
-        const durationMinutes = Math.round(summary.duration / 60);
+            const distanceMiles = summary.distance / 1609.34;
+            const durationMinutes = Math.round(summary.duration / 60);
 
-        setRouteDistance(distanceMiles.toFixed(2));
-        setRouteDuration(durationMinutes);
+            const nearbySpots = getSafeSpotsNearRoute(coordinates).sort(
+                (a, b) => b.safetyScore - a.safetyScore
+            );
 
-        const nearbySpots = getSafeSpotsNearRoute(coordinates).sort(
-            (a, b) => b.safetyScore - a.safetyScore
-        );
-        setNearbyRouteSpots(nearbySpots);
+            const typeWeights = {
+                "Police": 20,
+                "Police Station": 20,
+                "Hospital": 18,
+                "Shelter": 15,
+                "Library": 8
+            };
 
-        const typeWeights = {
-            "Police": 20,
-            "Police Station": 20,
-            "Hospital": 18,
-            "Shelter": 15,
-            "Library": 8
-        };
+            const typeBonus = nearbySpots.reduce((total, spot) => {
+                return total + (typeWeights[spot.type] || 5);
+            }, 0);
 
-        const typeBonus = nearbySpots.reduce((total, spot) => {
-            return total + (typeWeights[spot.type] || 5);
-        }, 0);
+            const qualityBonus = nearbySpots.reduce((total, spot) => {
+                return total + ((spot.safetyScore || 0) / 100) * 5;
+            }, 0);
 
-        const qualityBonus = nearbySpots.reduce((total, spot) => {
-            return total + ((spot.safetyScore || 0) / 100) * 5;
-        }, 0);
+            const uniqueTypes = new Set(nearbySpots.map((spot) => spot.type));
+            const diversityBonus = uniqueTypes.size * 5;
 
-        const uniqueTypes = new Set(nearbySpots.map((spot) => spot.type));
-        const diversityBonus = uniqueTypes.size * 5;
+            const distancePenalty = distanceMiles * 15;
 
-        const distancePenalty = distanceMiles * 15;
+            const score = Math.max(
+                0,
+                Math.min(
+                    100,
+                    30 + typeBonus + qualityBonus + diversityBonus - distancePenalty
+                )
+            );
 
-        const score = Math.max(
-            0,
-            Math.min(
-                100,
-                30 + typeBonus + qualityBonus + diversityBonus - distancePenalty
-            )
-        );
-
-        setSafeRouteScore(Math.round(score));
-
-        const hasPolice = nearbySpots.some(
-            spot => spot.type === "Police" || spot.type === "Police Station"
-        );
-
-        const hasHospital = nearbySpots.some(
-            spot => spot.type === "Hospital"
-        );
-
-        const hasShelter = nearbySpots.some(
-            spot => spot.type === "Shelter"
-        );
-
-        const hasLibrary = nearbySpots.some(
-            spot => spot.type === "Library"
-        );
-
-        const diverseResources = uniqueTypes.size >= 3;
-
-        const shortWalk = distanceMiles <= 1;
-
-        setScoreExplanation({
-            hasPolice,
-            hasHospital,
-            hasShelter,
-            hasLibrary,
-            diverseResources,
-            shortWalk
+            return {
+                id: index,
+                label: `Route ${index + 1}`,
+                coordinates,
+                distanceMiles: distanceMiles.toFixed(2),
+                durationMinutes,
+                nearbySpots,
+                safetyScore: Math.round(score)
+            };
         });
 
-        setRouteCoordinates(coordinates);
+        const bestRoute = routeChoices.sort(
+            (a, b) => b.safetyScore - a.safetyScore
+        )[0];
 
+        setRouteOptions(routeChoices);
+        setSelectedRouteId(bestRoute.id);
+        setRouteDistance(bestRoute.distanceMiles);
+        setRouteDuration(bestRoute.durationMinutes);
+        setSafeRouteScore(bestRoute.safetyScore);
+        setNearbyRouteSpots(bestRoute.nearbySpots);
+
+        const bestUniqueTypes = new Set(bestRoute.nearbySpots.map((spot) => spot.type));
+
+        setScoreExplanation({
+            hasPolice: bestRoute.nearbySpots.some(
+                spot => spot.type === "Police" || spot.type === "Police Station"
+            ),
+            hasHospital: bestRoute.nearbySpots.some(
+                spot => spot.type === "Hospital"
+            ),
+            hasShelter: bestRoute.nearbySpots.some(
+                spot => spot.type === "Shelter"
+            ),
+            hasLibrary: bestRoute.nearbySpots.some(
+                spot => spot.type === "Library"
+            ),
+            diverseResources: bestUniqueTypes.size >= 3,
+            shortWalk: Number(bestRoute.distanceMiles) <= 1
+        });
+
+        setRouteCoordinates(bestRoute.coordinates);
+
+    }
+
+    function selectRouteOption(route) {
+        setSelectedRouteId(route.id);
+        setRouteCoordinates(route.coordinates);
+        setRouteDistance(route.distanceMiles);
+        setRouteDuration(route.durationMinutes);
+        setSafeRouteScore(route.safetyScore);
+        setNearbyRouteSpots(route.nearbySpots);
+
+        const selectedUniqueTypes = new Set(
+            route.nearbySpots.map((spot) => spot.type)
+        );
+
+        setScoreExplanation({
+            hasPolice: route.nearbySpots.some(
+                (spot) =>
+                    spot.type === "Police" ||
+                    spot.type === "Police Station"
+            ),
+            hasHospital: route.nearbySpots.some(
+                (spot) => spot.type === "Hospital"
+            ),
+            hasShelter: route.nearbySpots.some(
+                (spot) => spot.type === "Shelter"
+            ),
+            hasLibrary: route.nearbySpots.some(
+                (spot) => spot.type === "Library"
+            ),
+            diverseResources: selectedUniqueTypes.size >= 3,
+            shortWalk: Number(route.distanceMiles) <= 1
+        });
     }
 
     async function findSafeRoute() {
@@ -480,6 +539,29 @@ function App() {
                         </p>
                     )}
 
+                    {routeOptions.length > 0 && (
+                        <div className="route-options">
+                            <h3>Available Routes</h3>
+
+                            {routeOptions.map((route) => (
+                                <div
+                                    key={route.id}
+                                    className={`route-option ${selectedRouteId === route.id ? "selected-route-option" : ""}`}
+                                    onClick={() => selectRouteOption(route)}
+                                >
+                                    <strong>
+                                        {route.label}
+                                        {route.id === selectedRouteId && " ⭐ Recommended"}
+                                    </strong>
+
+                                    <p>Safety Score: {route.safetyScore}/100</p>
+                                    <p>Distance: {route.distanceMiles} miles</p>
+                                    <p>Walk Time: {route.durationMinutes} min</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     {scoreExplanation && (
                         <div className="score-breakdown">
                             <h4>Why this score?</h4>
@@ -498,7 +580,7 @@ function App() {
                     </p>
 
                     {nearbyRouteSpots.length > 0 && (
-                        <div className="nearby-route-spots">
+                        <div className="nearbyF-route-spots">
                             <h4>SafeSpots Along This Route</h4>
 
                             {nearbyRouteSpots.map((spot) => (
@@ -536,6 +618,8 @@ function App() {
                     attribution='&copy; OpenStreetMap contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
+
+                <FitMapToRoute routeCoordinates={routeCoordinates} />
 
                 {userLocation && (
                     <Marker position={userLocation}>

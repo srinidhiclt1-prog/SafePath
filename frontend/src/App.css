@@ -195,3 +195,22 @@ h1 {
   font-weight: bold;
   margin-top: 4px;
 }
+
+.route-option {
+  background: white;
+  border: 2px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 12px;
+  margin: 10px 0;
+  cursor: pointer;
+}
+
+.route-option:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.selected-route-option {
+  border-color: #2563eb;
+  background: #dbeafe;
+}
