@@ -33,6 +33,7 @@ function App() {
     const [routeDistance, setRouteDistance] = useState(null);
     const [routeDuration, setRouteDuration] = useState(null);
     const [destinationInput, setDestinationInput] = useState("");
+    const [travelTime, setTravelTime] = useState("18:00");
     const [safeRouteScore, setSafeRouteScore] = useState(null);
     const [nearbyRouteSpots, setNearbyRouteSpots] = useState([]);
     const [scoreExplanation, setScoreExplanation] = useState(null);
@@ -157,6 +158,14 @@ function App() {
 
         const data = await response.json();
 
+        console.log("Route API response:", data);
+
+        if (!data.features || !Array.isArray(data.features)) {
+            console.error("No route features found:", data);
+            alert("No route options found. Try a different location or destination.");
+            return;
+        }
+
         if (!data.features || data.features.length === 0) {
             return null;
         }
@@ -239,6 +248,24 @@ function App() {
         );
     }
 
+    function adjustSafetyForTime(score, travelTime) {
+        const hour = Number(travelTime.split(":")[0]);
+
+        if (hour >= 22 || hour < 5) {
+            return Math.max(0, score - 20);
+        }
+
+        if (hour >= 19) {
+            return Math.max(0, score - 10);
+        }
+
+        if (hour >= 6 && hour < 18) {
+            return Math.min(100, score + 3);
+        }
+
+        return score;
+    }
+
     function getSafetyBadge(score) {
         if (score >= 95) return "🟢 Very Safe";
         if (score >= 90) return "🟡 Safe";
@@ -282,7 +309,17 @@ function App() {
 
         const data = await response.json();
 
-        const routeChoices = data.features.map((feature, index) => {
+
+        console.log("Route API response:", data);
+
+        if (!data.features || !Array.isArray(data.features)) {
+            console.error("No route features found:", data);
+            alert("No route options found. Try a different location or destination.");
+            return;
+        }
+
+        const routeChoices = await Promise.all(
+            data.features.map(async (feature, index) => {
             const summary = feature.properties.summary;
 
             const coordinates = feature.geometry.coordinates.map((coord) => [
@@ -318,24 +355,34 @@ function App() {
 
             const distancePenalty = distanceMiles * 15;
 
+                const middlePoint = coordinates[Math.floor(coordinates.length / 2)];
+
+                const crimeResponse = await fetch(
+                    `http://localhost:8080/crimes/penalty?lat=${middlePoint[0]}&lon=${middlePoint[1]}`
+                );
+
+                const crimePenalty = await crimeResponse.json();
+
             const score = Math.max(
                 0,
                 Math.min(
                     100,
-                    30 + typeBonus + qualityBonus + diversityBonus - distancePenalty
+                    30 + typeBonus + qualityBonus + diversityBonus - distancePenalty - crimePenalty
                 )
             );
 
-            return {
-                id: index,
-                label: `Route ${index + 1}`,
-                coordinates,
-                distanceMiles: distanceMiles.toFixed(2),
-                durationMinutes,
-                nearbySpots,
-                safetyScore: Math.round(score)
-            };
-        });
+                return {
+                    id: index,
+                    label: `Route ${index + 1}`,
+                    coordinates,
+                    distanceMiles: distanceMiles.toFixed(2),
+                    durationMinutes,
+                    nearbySpots,
+                    safetyScore: Math.round(score),
+                    crimePenalty
+                };
+            })
+        );
 
         const bestRoute = routeChoices.sort(
             (a, b) => b.safetyScore - a.safetyScore
@@ -506,6 +553,14 @@ function App() {
                         placeholder="Enter destination"
                         value={destinationInput}
                         onChange={(e) => setDestinationInput(e.target.value)}
+                    />
+
+                    <label>Travel Time:</label>
+
+                    <input
+                        type="time"
+                        value={travelTime}
+                        onChange={(e) => setTravelTime(e.target.value)}
                     />
 
                     <button onClick={findSafeRoute}>
