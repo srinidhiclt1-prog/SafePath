@@ -153,7 +153,14 @@ function App() {
         const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImMwZDRmYTM3NDQyNzRjODc4NTBkY2M5ZTIwNjZhZDM0IiwiaCI6Im11cm11cjY0In0=";
 
         const response = await fetch(
-            `https://api.openrouteservice.org/geocode/search?api_key=${apiKey}&text=${encodeURIComponent(locationName)}`
+            `https://api.openrouteservice.org/geocode/search` +
+            `?api_key=${apiKey}` +
+            `&text=${encodeURIComponent(locationName)}` +
+            `&boundary.country=US` +
+            `&boundary.rect.min_lon=-74.2591` +
+            `&boundary.rect.min_lat=40.4774` +
+            `&boundary.rect.max_lon=-73.7004` +
+            `&boundary.rect.max_lat=40.9176`
         );
 
         const data = await response.json();
@@ -266,6 +273,7 @@ function App() {
         return score;
     }
 
+
     function getSafetyBadge(score) {
         if (score >= 95) return "🟢 Very Safe";
         if (score >= 90) return "🟡 Safe";
@@ -318,58 +326,73 @@ function App() {
             return;
         }
 
-        const routeChoices = await Promise.all(
+        const preliminaryRoutes = await Promise.all(
             data.features.map(async (feature, index) => {
-            const summary = feature.properties.summary;
+                const summary = feature.properties.summary;
 
-            const coordinates = feature.geometry.coordinates.map((coord) => [
-                coord[1],
-                coord[0]
-            ]);
+                const coordinates = feature.geometry.coordinates.map((coord) => [
+                    coord[1],
+                    coord[0]
+                ]);
 
-            const distanceMiles = summary.distance / 1609.34;
-            const durationMinutes = Math.round(summary.duration / 60);
+                const distanceMiles = summary.distance / 1609.34;
+                const durationMinutes = Math.round(summary.duration / 60);
 
-            const nearbySpots = getSafeSpotsNearRoute(coordinates).sort(
-                (a, b) => b.safetyScore - a.safetyScore
-            );
-
-            const typeWeights = {
-                "Police": 20,
-                "Police Station": 20,
-                "Hospital": 18,
-                "Shelter": 15,
-                "Library": 8
-            };
-
-            const typeBonus = nearbySpots.reduce((total, spot) => {
-                return total + (typeWeights[spot.type] || 5);
-            }, 0);
-
-            const qualityBonus = nearbySpots.reduce((total, spot) => {
-                return total + ((spot.safetyScore || 0) / 100) * 5;
-            }, 0);
-
-            const uniqueTypes = new Set(nearbySpots.map((spot) => spot.type));
-            const diversityBonus = uniqueTypes.size * 5;
-
-            const distancePenalty = distanceMiles * 15;
-
-                const middlePoint = coordinates[Math.floor(coordinates.length / 2)];
-
-                const crimeResponse = await fetch(
-                    `http://localhost:8080/crimes/penalty?lat=${middlePoint[0]}&lon=${middlePoint[1]}`
+                const nearbySpots = getSafeSpotsNearRoute(coordinates).sort(
+                    (a, b) => b.safetyScore - a.safetyScore
                 );
 
-                const crimePenalty = await crimeResponse.json();
+                const typeWeights = {
+                    Police: 20,
+                    "Police Station": 20,
+                    Hospital: 18,
+                    Shelter: 15,
+                    Library: 8
+                };
 
-            const score = Math.max(
-                0,
-                Math.min(
-                    100,
-                    30 + typeBonus + qualityBonus + diversityBonus - distancePenalty - crimePenalty
-                )
-            );
+                const typeBonus = nearbySpots.reduce((total, spot) => {
+                    return total + (typeWeights[spot.type] || 5);
+                }, 0);
+
+                const qualityBonus = nearbySpots.reduce((total, spot) => {
+                    return total + ((spot.safetyScore || 0) / 100) * 5;
+                }, 0);
+
+                const uniqueTypes = new Set(
+                    nearbySpots.map((spot) => spot.type)
+                );
+
+                const diversityBonus = uniqueTypes.size * 5;
+                const distancePenalty = distanceMiles * 15;
+
+                // Check crime exposure at 25%, 50%, and 75% of the route.
+                const sampleIndexes = [
+                    Math.floor(coordinates.length * 0.25),
+                    Math.floor(coordinates.length * 0.50),
+                    Math.floor(coordinates.length * 0.75)
+                ];
+
+                const samplePoints = sampleIndexes.map(
+                    (sampleIndex) => coordinates[sampleIndex]
+                );
+
+                const crimeCounts = await Promise.all(
+                    samplePoints.map(async (point) => {
+                        const crimeResponse = await fetch(
+                            `http://localhost:8080/crimes/nearby?lat=${point[0]}&lon=${point[1]}`
+                        );
+
+                        if (!crimeResponse.ok) {
+                            throw new Error("Crime-data request failed.");
+                        }
+
+                        return crimeResponse.json();
+                    })
+                );
+
+                const averageCrimeCount =
+                    crimeCounts.reduce((total, count) => total + count, 0) /
+                    crimeCounts.length;
 
                 return {
                     id: index,
@@ -378,17 +401,76 @@ function App() {
                     distanceMiles: distanceMiles.toFixed(2),
                     durationMinutes,
                     nearbySpots,
-                    safetyScore: Math.round(score),
-                    crimePenalty
+                    typeBonus,
+                    qualityBonus,
+                    diversityBonus,
+                    distancePenalty,
+                    averageCrimeCount
                 };
             })
         );
 
-        const bestRoute = routeChoices.sort(
-            (a, b) => b.safetyScore - a.safetyScore
-        )[0];
+// Compare the crime exposure of all candidate routes.
+        const crimeCountsByRoute = preliminaryRoutes.map(
+            (route) => route.averageCrimeCount
+        );
 
-        setRouteOptions(routeChoices);
+        const minimumCrimeCount = Math.min(...crimeCountsByRoute);
+        const maximumCrimeCount = Math.max(...crimeCountsByRoute);
+
+        const routeChoices = preliminaryRoutes.map((route) => {
+            let crimePenalty;
+
+            if (maximumCrimeCount === minimumCrimeCount) {
+                // True tie: fall back to an absolute crime penalty.
+                crimePenalty = Math.min(
+                    30,
+                    Math.round(Math.sqrt(route.averageCrimeCount) * 0.75)
+                );
+            } else {
+                // Lowest-crime candidate receives 8 points of penalty.
+                // Highest-crime candidate receives 30 points of penalty.
+                const relativeRisk =
+                    (route.averageCrimeCount - minimumCrimeCount) /
+                    (maximumCrimeCount - minimumCrimeCount);
+
+                crimePenalty = Math.round(8 + relativeRisk * 22);
+            }
+
+            const baseScore = Math.max(
+                0,
+                Math.min(
+                    100,
+                    30
+                    + route.typeBonus
+                    + route.qualityBonus
+                    + route.diversityBonus
+                    - route.distancePenalty
+                    - crimePenalty
+                )
+            );
+
+            const score = adjustSafetyForTime(baseScore, travelTime);
+
+            return {
+                id: route.id,
+                label: route.label,
+                coordinates: route.coordinates,
+                distanceMiles: route.distanceMiles,
+                durationMinutes: route.durationMinutes,
+                nearbySpots: route.nearbySpots,
+                safetyScore: Math.round(score),
+                crimePenalty
+            };
+        });
+
+        const sortedRoutes = [...routeChoices].sort(
+            (a, b) => b.safetyScore - a.safetyScore
+        );
+
+        const bestRoute = sortedRoutes[0];
+
+        setRouteOptions(sortedRoutes);
         setSelectedRouteId(bestRoute.id);
         setRouteDistance(bestRoute.distanceMiles);
         setRouteDuration(bestRoute.durationMinutes);
@@ -610,6 +692,8 @@ function App() {
                                     </strong>
 
                                     <p>Safety Score: {route.safetyScore}/100</p>
+                                    <p>🚔 Crime Penalty: -{route.crimePenalty}</p>
+                                    <p>🕒 Travel Time: {travelTime}</p>
                                     <p>Distance: {route.distanceMiles} miles</p>
                                     <p>Walk Time: {route.durationMinutes} min</p>
                                 </div>
