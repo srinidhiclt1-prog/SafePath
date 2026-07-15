@@ -21,12 +21,25 @@ function FitMapToRoute({ routeCoordinates }) {
     return null;
 }
 
+function RecenterMap({ center }) {
+    const map = useMap();
+
+    useEffect(() => {
+        if (center) {
+            map.setView(center, 14);
+        }
+    }, [center, map]);
+
+    return null;
+}
+
 function App() {
 
     const [safeSpots, setSafeSpots] = useState([]);
     const [city, setCity] = useState("");
     const [mapCenter, setMapCenter] = useState([40.7128, -74.0060]);
     const [userLocation, setUserLocation] = useState(null);
+    const [locationStatus, setLocationStatus] = useState("");
     const [selectedSafeSpot, setSelectedSafeSpot] = useState(null);
     const [manualLocation, setManualLocation] = useState("");
     const [routeCoordinates, setRouteCoordinates] = useState([]);
@@ -131,18 +144,111 @@ function App() {
             .then(data => setSafeSpots(Array.isArray(data) ? data : []));
     }
 
-    function useMyLocation() {
-        navigator.geolocation.getCurrentPosition((position) => {
-            const userLat = position.coords.latitude;
-            const userLon = position.coords.longitude;
+    async function reverseGeocodeLocation(latitude, longitude) {
+        try {
+            const response = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`
+            );
 
-            setMapCenter([userLat, userLon]);
-            setUserLocation([userLat, userLon]);
+            if (!response.ok) {
+                throw new Error("Could not retrieve the address.");
+            }
 
-            fetch(`http://localhost:8080/safespots/nearby?lat=${userLat}&lon=${userLon}`)
-                .then(response => response.json())
-                .then(data => setSafeSpots(Array.isArray(data) ? data : []));
-        });
+            const data = await response.json();
+
+            return data.display_name || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+        } catch (error) {
+            console.error("Reverse geocoding failed:", error);
+
+            return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+        }
+    }
+
+    function isInsideNYC(latitude, longitude) {
+        return (
+            latitude >= 40.4774 &&
+            latitude <= 40.9176 &&
+            longitude >= -74.2591 &&
+            longitude <= -73.7004
+        );
+    }
+
+    function handleUseMyLocation() {
+        if (!navigator.geolocation) {
+            alert("Location services are not supported by this browser.");
+            return;
+        }
+
+
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const userLat = position.coords.latitude;
+                const userLon = position.coords.longitude;
+
+                const locationCoordinates = [userLat, userLon];
+
+                setUserLocation(locationCoordinates);
+
+                if (isInsideNYC(userLat, userLon)) {
+                    setMapCenter(locationCoordinates);
+                } else {
+                    setMapCenter([40.7128, -74.0060]);
+                }
+
+                const readableAddress = await reverseGeocodeLocation(
+                    userLat,
+                    userLon
+                );
+
+                if (isInsideNYC(userLat, userLon)) {
+                    setLocationStatus("Using your current location.");
+                    try {
+                        const response = await fetch(
+                            `http://localhost:8080/safespots/nearby?lat=${userLat}&lon=${userLon}`
+                        );
+
+                        if (!response.ok) {
+                            throw new Error("Could not load nearby SafeSpots.");
+                        }
+
+                        const data = await response.json();
+
+                        if (Array.isArray(data) && data.length > 0) {
+                            setSafeSpots(data);
+                        }
+                    } catch (error) {
+                        console.error("Nearby SafeSpot request failed:", error);
+                    }
+                } else {
+                    setLocationStatus(
+                        "Current location detected, but SafePath currently supports NYC only."
+                    );
+
+                    loadAllSafeSpots();
+                }
+            },
+            (error) => {
+                console.error("Location error:", error);
+                setLocationStatus("Unable to detect your current location.");
+
+                if (error.code === error.PERMISSION_DENIED) {
+                    alert(
+                        "Location permission was denied. You can still enter your location manually."
+                    );
+                } else if (error.code === error.POSITION_UNAVAILABLE) {
+                    alert("Your current location could not be determined.");
+                } else if (error.code === error.TIMEOUT) {
+                    alert("The location request timed out. Please try again.");
+                } else {
+                    alert("Something went wrong while retrieving your location.");
+                }
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 60000
+            }
+        );
     }
 
     function safeExit() {
@@ -464,9 +570,12 @@ function App() {
             };
         });
 
-        const sortedRoutes = [...routeChoices].sort(
-            (a, b) => b.safetyScore - a.safetyScore
-        );
+        const sortedRoutes = [...routeChoices]
+            .sort((a, b) => b.safetyScore - a.safetyScore)
+            .map((route, index) => ({
+                ...route,
+                label: `Route ${index + 1}`
+            }));
 
         const bestRoute = sortedRoutes[0];
 
@@ -564,14 +673,24 @@ function App() {
 
     return (
         <div className="app">
-            <h1>SafePath</h1>
-            <p>NYC Safety Navigation Platform</p>
+            <header className="app-header">
+                <div className="brand">
+                    <div className="brand-icon">📍</div>
+
+                    <div className="brand-text">
+                        <h1>SafePath</h1>
+                        <p>NYC Safety Navigation Platform</p>
+                    </div>
+                </div>
 
                 <button className="safe-exit" onClick={safeExit}>
-                    Quick Exit
+                    🏃 Quick Exit
                 </button>
+            </header>
 
-            <div className="controls">
+            <div className="dashboard-grid">
+
+            <aside className="controls sidebar-card">
 
             <div className="control-section">
                     <span className="control-label">Filters:</span>
@@ -591,7 +710,7 @@ function App() {
                         Nearby Safe Spots
                     </button>
 
-                    <button onClick={useMyLocation}>
+                    <button onClick={handleUseMyLocation}>
                         Use My Location
                     </button>
                 </div>
@@ -625,6 +744,19 @@ function App() {
                     <button onClick={useEnteredLocation}>
                         Use Entered Location
                     </button>
+
+                    {locationStatus && (
+                        <p
+                            style={{
+                                color: "green",
+                                fontWeight: "bold",
+                                marginTop: "8px"
+                            }}
+                        >
+                            📍 {locationStatus}
+                        </p>
+                    )}
+
                 </div>
 
                 <div className="control-section">
@@ -649,157 +781,252 @@ function App() {
                         Find SafeRoute
                     </button>
                 </div>
-            </div>
+            </aside>
 
-            {selectedSafeSpot && (
-                <div className="selected-route">
-                    <h2>Route Details</h2>
-
-                    <h3>{selectedSafeSpot.name}</h3>
-
-                    <p><strong>Type:</strong> {selectedSafeSpot.type}</p>
-                    <p><strong>Address:</strong> {selectedSafeSpot.address}</p>
-                    <p><strong>City:</strong> {selectedSafeSpot.city}</p>
-                    <p><strong>Safety Score:</strong> {selectedSafeSpot.safetyScore}</p>
-
-                    {routeDistance && (
-                        <p><strong>Distance:</strong> {routeDistance} miles</p>
-                    )}
-
-                    {routeDuration && (
-                        <p><strong>Estimated Walk:</strong> {routeDuration} minutes</p>
-                    )}
-
-                    {safeRouteScore !== null && (
-                        <p>
-                            <strong>SafeRoute Score:</strong> {safeRouteScore}/100
-                        </p>
-                    )}
-
-                    {routeOptions.length > 0 && (
-                        <div className="route-options">
-                            <h3>Available Routes</h3>
-
-                            {routeOptions.map((route) => (
-                                <div
-                                    key={route.id}
-                                    className={`route-option ${selectedRouteId === route.id ? "selected-route-option" : ""}`}
-                                    onClick={() => selectRouteOption(route)}
-                                >
-                                    <strong>
-                                        {route.label}
-                                        {route.id === selectedRouteId && " ⭐ Recommended"}
-                                    </strong>
-
-                                    <p>Safety Score: {route.safetyScore}/100</p>
-                                    <p>🚔 Crime Penalty: -{route.crimePenalty}</p>
-                                    <p>🕒 Travel Time: {travelTime}</p>
-                                    <p>Distance: {route.distanceMiles} miles</p>
-                                    <p>Walk Time: {route.durationMinutes} min</p>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {scoreExplanation && (
-                        <div className="score-breakdown">
-                            <h4>Why this score?</h4>
-
-                            <p>🚔 Police Protection: {scoreExplanation.hasPolice ? "✓" : "✗"}</p>
-                            <p>🏥 Medical Access: {scoreExplanation.hasHospital ? "✓" : "✗"}</p>
-                            <p>🏠 Shelter Nearby: {scoreExplanation.hasShelter ? "✓" : "✗"}</p>
-                            <p>📚 Public Safe Spaces: {scoreExplanation.hasLibrary ? "✓" : "✗"}</p>
-                            <p>🌟 Diverse Resources: {scoreExplanation.diverseResources ? "✓" : "✗"}</p>
-                            <p>🚶 Short Walking Distance: {scoreExplanation.shortWalk ? "✓" : "✗"}</p>
-                        </div>
-                    )}
-
-                    <p>
-                        <strong>SafeSpots Near Route:</strong> {nearbyRouteSpots.length}
-                    </p>
-
-                    {nearbyRouteSpots.length > 0 && (
-                        <div className="nearbyF-route-spots">
-                            <h4>SafeSpots Along This Route</h4>
-
-                            {nearbyRouteSpots.map((spot) => (
-                                <div className="nearby-route-spot" key={spot.id}>
-                                    <strong>{spot.name}</strong>
-                                    <p>{spot.type} • Safety Score: {spot.safetyScore}</p>
-                                    <p className="safety-badge">{getSafetyBadge(spot.safetyScore)}</p>
-
-                                    <button onClick={() => loadRoute(spot)}>
-                                        Route Here
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    <div className="route-buttons">
-                        <button onClick={openInGoogleMaps}>
-                            Open in Google Maps
-                        </button>
-
-                        <button onClick={() => setSelectedSafeSpot(null)}>
-                            Clear Route
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            <MapContainer
-                center={mapCenter}
-                zoom={12}
-                style={{ height: "500px", width: "100%" }}
-            >
-                <TileLayer
-                    attribution='&copy; OpenStreetMap contributors'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-
-                <FitMapToRoute routeCoordinates={routeCoordinates} />
-
-                {userLocation && (
-                    <Marker position={userLocation}>
-                        <Popup>
-                            <h3>Your Location</h3>
-                        </Popup>
-                    </Marker>
-                )}
-
-                {userLocation && selectedSafeSpot && (
-                    <Polyline
-                        positions={
-                            routeCoordinates.length > 0
-                                ? routeCoordinates
-                                : [
-                                    userLocation,
-                                    [selectedSafeSpot.latitude, selectedSafeSpot.longitude]
-                                ]
-                        }
-                        pathOptions={{
-                            color: "blue",
-                            weight: 6
-                        }}
-                    />
-                )}
-
-                {safeSpots
-                    .slice(0, 5).map((spot) => (
-                    <Marker
-                        key={spot.id}
-                        position={[spot.latitude, spot.longitude]}
-                        icon={getIcon(spot.type)}
+                <main className="main-panel">
+                    <MapContainer
+                        center={mapCenter}
+                        zoom={12}
+                        style={{ height: "500px", width: "100%" }}
                     >
-                        <Popup>
-                            <h3>{spot.name}</h3>
-                            <p>{spot.type}</p>
-                            <p>Safety Score: {spot.safetyScore}</p>
-                        </Popup>
-                    </Marker>
-                ))}
-            </MapContainer>
+                        <TileLayer
+                            attribution='&copy; OpenStreetMap contributors'
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        />
+
+                        <RecenterMap center={mapCenter} />
+
+                        <FitMapToRoute routeCoordinates={routeCoordinates} />
+
+                        {userLocation && (
+                            <Marker position={userLocation}>
+                                <Popup>
+                                    <h3>Your Location</h3>
+                                </Popup>
+                            </Marker>
+                        )}
+
+                        {userLocation && selectedSafeSpot && (
+                            <Polyline
+                                positions={
+                                    routeCoordinates.length > 0
+                                        ? routeCoordinates
+                                        : [
+                                            userLocation,
+                                            [
+                                                selectedSafeSpot.latitude,
+                                                selectedSafeSpot.longitude
+                                            ]
+                                        ]
+                                }
+                                pathOptions={{
+                                    color: "blue",
+                                    weight: 6
+                                }}
+                            />
+                        )}
+
+                        {safeSpots.slice(0, 5).map((spot) => (
+                            <Marker
+                                key={spot.id}
+                                position={[spot.latitude, spot.longitude]}
+                                icon={getIcon(spot.type)}
+                            >
+                                <Popup>
+                                    <h3>{spot.name}</h3>
+                                    <p>{spot.type}</p>
+                                    <p>Safety Score: {spot.safetyScore}</p>
+                                </Popup>
+                            </Marker>
+                        ))}
+                    </MapContainer>
+
+                    {selectedSafeSpot && (
+                        <div className="selected-route">
+                            <h2>Route Details</h2>
+
+                            <h3>{selectedSafeSpot.name}</h3>
+
+                            <p>
+                                <strong>Type:</strong> {selectedSafeSpot.type}
+                            </p>
+
+                            <p>
+                                <strong>Address:</strong> {selectedSafeSpot.address}
+                            </p>
+
+                            <p>
+                                <strong>City:</strong> {selectedSafeSpot.city}
+                            </p>
+
+                            <p>
+                                <strong>Safety Score:</strong>{" "}
+                                {selectedSafeSpot.safetyScore}
+                            </p>
+
+                            {routeDistance && (
+                                <p>
+                                    <strong>Distance:</strong> {routeDistance} miles
+                                </p>
+                            )}
+
+                            {routeDuration && (
+                                <p>
+                                    <strong>Estimated Walk:</strong>{" "}
+                                    {routeDuration} minutes
+                                </p>
+                            )}
+
+                            {safeRouteScore !== null && (
+                                <p>
+                                    <strong>SafeRoute Score:</strong>{" "}
+                                    {safeRouteScore}/100
+                                </p>
+                            )}
+
+                            {routeOptions.length > 0 && (
+                                <div className="route-options">
+                                    <h3>Available Routes</h3>
+
+                                    {routeOptions.map((route, index) => (
+                                        <div
+                                            key={route.id}
+                                            className={`route-option ${
+                                                selectedRouteId === route.id
+                                                    ? "selected-route-option"
+                                                    : ""
+                                            }`}
+                                            onClick={() => selectRouteOption(route)}
+                                        >
+                                            <div className="route-card-header">
+                                                <div>
+                                                    <h4>{route.label}</h4>
+
+                                                    {index === 0 && (
+                                                        <span className="recommended-badge">
+                                            Safest Route
+                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div className="route-score">
+                                                    <strong>
+                                                        {route.safetyScore}
+                                                    </strong>
+                                                    <span>/100</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="route-card-stats">
+                                <span>
+                                    🚶 {route.distanceMiles} mi
+                                </span>
+
+                                                <span>
+                                    ⏱️ {route.durationMinutes} min
+                                </span>
+
+                                                <span>
+                                    🚔 -{route.crimePenalty} risk
+                                </span>
+                                            </div>
+
+                                            {selectedRouteId === route.id && (
+                                                <p className="selected-route-label">
+                                                    ✓ Currently selected
+                                                </p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {scoreExplanation && (
+                                <div className="score-breakdown">
+                                    <h4>Why this score?</h4>
+
+                                    <p>
+                                        🚔 Police Protection:{" "}
+                                        {scoreExplanation.hasPolice ? "✓" : "✗"}
+                                    </p>
+
+                                    <p>
+                                        🏥 Medical Access:{" "}
+                                        {scoreExplanation.hasHospital ? "✓" : "✗"}
+                                    </p>
+
+                                    <p>
+                                        🏠 Shelter Nearby:{" "}
+                                        {scoreExplanation.hasShelter ? "✓" : "✗"}
+                                    </p>
+
+                                    <p>
+                                        📚 Public Safe Spaces:{" "}
+                                        {scoreExplanation.hasLibrary ? "✓" : "✗"}
+                                    </p>
+
+                                    <p>
+                                        🌟 Diverse Resources:{" "}
+                                        {scoreExplanation.diverseResources
+                                            ? "✓"
+                                            : "✗"}
+                                    </p>
+
+                                    <p>
+                                        🚶 Short Walking Distance:{" "}
+                                        {scoreExplanation.shortWalk ? "✓" : "✗"}
+                                    </p>
+                                </div>
+                            )}
+
+                            <p>
+                                <strong>SafeSpots Near Route:</strong>{" "}
+                                {nearbyRouteSpots.length}
+                            </p>
+
+                            {nearbyRouteSpots.length > 0 && (
+                                <div className="nearby-route-spots">
+                                    <h4>SafeSpots Along This Route</h4>
+
+                                    {nearbyRouteSpots.map((spot) => (
+                                        <div
+                                            className="nearby-route-spot"
+                                            key={spot.id}
+                                        >
+                                            <strong>{spot.name}</strong>
+
+                                            <p>
+                                                {spot.type} • Safety Score:{" "}
+                                                {spot.safetyScore}
+                                            </p>
+
+                                            <p className="safety-badge">
+                                                {getSafetyBadge(spot.safetyScore)}
+                                            </p>
+
+                                            <button onClick={() => loadRoute(spot)}>
+                                                Route Here
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="route-buttons">
+                                <button onClick={openInGoogleMaps}>
+                                    Open in Google Maps
+                                </button>
+
+                                <button
+                                    onClick={() => setSelectedSafeSpot(null)}
+                                >
+                                    Clear Route
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </main>
+            </div>
 
             <div className="crisis-connect">
                 <h2>CrisisConnect</h2>

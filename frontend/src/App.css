@@ -5,19 +5,18 @@ body {
 }
 
 .app {
-  padding: 40px;
+  padding: 24px 28px 40px;
+  max-width: 1500px;
+  margin: 0 auto;
 }
 
 .safe-exit {
   background-color: crimson;
   color: white;
   font-weight: bold;
-  font-size: 20px;
-  padding: 14px 28px;
   border-radius: 10px;
   border: none;
   cursor: pointer;
-  margin-bottom: 20px;
 }
 
 .safe-exit:hover {
@@ -213,4 +212,149 @@ h1 {
 .selected-route-option {
   border-color: #2563eb;
   background: #dbeafe;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  color: white;
+  font-size: 24px;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.22);
+}
+
+.brand-text {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+}
+
+.brand-text h1 {
+  margin: 0;
+  font-size: 2.4rem;
+  color: #0f172a;
+}
+
+.brand-text p {
+  margin: 0;
+  color: #475569;
+  font-size: 16px;
+}
+
+.safe-exit {
+  margin: 0;
+  font-size: 16px;
+  padding: 13px 22px;
+  border-radius: 10px;
+  box-shadow: 0 6px 16px rgba(220, 20, 60, 0.2);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 380px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 24px;
+}
+
+.sidebar-card {
+  background: white;
+  padding: 20px;
+  border-radius: 18px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  max-width: none;
+  margin: 0;
+}
+
+.dashboard-grid .leaflet-container {
+  height: 500px !important;
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+.sidebar-card .control-section {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.sidebar-card .control-label {
+  width: auto;
+  font-size: 15px;
+  color: #0f172a;
+}
+
+.sidebar-card input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sidebar-card button {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-grid .leaflet-container {
+    height: 430px !important;
+  }
+}
+
+
+.sidebar-card .control-section:first-child {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebar-card .control-section:first-child .control-label {
+  width: 100%;
+}
+
+.sidebar-card .control-section:first-child button {
+  width: auto;
+  flex: 1 1 95px;
+}
+
+.main-panel {
+  background: white;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+.main-panel .selected-route {
+  margin: 0;
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  border-radius: 0;
+  background: white;
 }
