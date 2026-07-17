@@ -886,12 +886,15 @@ function App() {
 
                             {routeOptions.length > 0 && (
                                 <div className="route-options">
-                                    <h3>Available Routes</h3>
+                                    <div className="routes-heading">
+                                        <h3>🛡️ Top 3 Safest Routes</h3>
+                                        <p>Routes ordered by overall safety score (higher is better)</p>
+                                    </div>
 
                                     {routeOptions.map((route, index) => (
                                         <div
                                             key={route.id}
-                                            className={`route-option ${
+                                            className={`route-option route-option-${index + 1} ${
                                                 selectedRouteId === route.id
                                                     ? "selected-route-option"
                                                     : ""
