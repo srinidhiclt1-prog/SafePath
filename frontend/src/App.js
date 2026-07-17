@@ -195,7 +195,7 @@ function App() {
                     setMapCenter([40.7128, -74.0060]);
                 }
 
-                const readableAddress = await reverseGeocodeLocation(
+                await reverseGeocodeLocation(
                     userLat,
                     userLon
                 );
@@ -690,98 +690,107 @@ function App() {
 
             <div className="dashboard-grid">
 
-            <aside className="controls sidebar-card">
+                <aside className="dashboard-sidebar">
+                    <section className="sidebar-section">
+                        <h3>Filters</h3>
 
-            <div className="control-section">
-                    <span className="control-label">Filters:</span>
+                        <div className="filter-buttons">
+                            <button onClick={loadAllSafeSpots}>All</button>
+                            <button onClick={loadHospitals}>Hospitals</button>
+                            <button onClick={loadLibraries}>Libraries</button>
+                            <button onClick={loadPoliceStations}>Police</button>
+                            <button onClick={loadShelters}>Shelters</button>
+                            <button onClick={loadHighSafetySpots}>High Safety</button>
+                        </div>
+                    </section>
 
-                    <button onClick={loadAllSafeSpots}>All</button>
-                    <button onClick={loadHospitals}>Hospitals</button>
-                    <button onClick={loadLibraries}>Libraries</button>
-                    <button onClick={loadPoliceStations}>Police</button>
-                    <button onClick={loadShelters}>Shelters</button>
-                    <button onClick={loadHighSafetySpots}>High Safety</button>
-                </div>
+                    <section className="sidebar-section">
+                        <h3>Your Location</h3>
 
-                <div className="control-section">
-                    <span className="control-label">Location:</span>
+                        <div className="location-actions">
+                            <button onClick={loadNearbySafeSpots}>
+                                📍 Nearby SafeSpots
+                            </button>
 
-                    <button onClick={loadNearbySafeSpots}>
-                        Nearby Safe Spots
-                    </button>
+                            <button onClick={handleUseMyLocation}>
+                                ◎ Use My Location
+                            </button>
+                        </div>
 
-                    <button onClick={handleUseMyLocation}>
-                        Use My Location
-                    </button>
-                </div>
+                        {locationStatus && (
+                            <div className="location-message">
+                                ✓ {locationStatus}
+                            </div>
+                        )}
+                    </section>
 
-                <div className="control-section">
-                    <span className="control-label">Search:</span>
+                    <section className="sidebar-section">
+                        <label htmlFor="city-search">Search City</label>
 
-                    <input
-                        type="text"
-                        placeholder="Enter city"
-                        value={city}
-                        onChange={(e) => setCity(e.target.value)}
-                    />
+                        <div className="input-button-row">
+                            <input
+                                id="city-search"
+                                type="text"
+                                placeholder="Enter city"
+                                value={city}
+                                onChange={(e) => setCity(e.target.value)}
+                            />
 
-                    <button onClick={searchByCity}>
-                        Search City
-                    </button>
-                </div>
+                            <button onClick={searchByCity}>
+                                Search
+                            </button>
+                        </div>
+                    </section>
 
+                    <section className="sidebar-section">
+                        <label htmlFor="manual-location">Manual Location</label>
 
-                <div className="control-section">
-                    <span className="control-label">Manual:</span>
+                        <input
+                            id="manual-location"
+                            type="text"
+                            placeholder="Enter your starting location"
+                            value={manualLocation}
+                            onChange={(e) => setManualLocation(e.target.value)}
+                        />
 
-                    <input
-                        type="text"
-                        placeholder="Enter your location"
-                        value={manualLocation}
-                        onChange={(e) => setManualLocation(e.target.value)}
-                    />
-
-                    <button onClick={useEnteredLocation}>
-                        Use Entered Location
-                    </button>
-
-                    {locationStatus && (
-                        <p
-                            style={{
-                                color: "green",
-                                fontWeight: "bold",
-                                marginTop: "8px"
-                            }}
+                        <button
+                            className="full-width-button secondary-button"
+                            onClick={useEnteredLocation}
                         >
-                            📍 {locationStatus}
-                        </p>
-                    )}
+                            Use Entered Location
+                        </button>
+                    </section>
 
-                </div>
+                    <section className="sidebar-section safe-route-section">
+                        <h3>SafeRoute</h3>
 
-                <div className="control-section">
-                    <span className="control-label">SafeRoute:</span>
+                        <label htmlFor="destination">Destination</label>
 
-                    <input
-                        type="text"
-                        placeholder="Enter destination"
-                        value={destinationInput}
-                        onChange={(e) => setDestinationInput(e.target.value)}
-                    />
+                        <input
+                            id="destination"
+                            type="text"
+                            placeholder="Enter destination"
+                            value={destinationInput}
+                            onChange={(e) => setDestinationInput(e.target.value)}
+                        />
 
-                    <label>Travel Time:</label>
+                        <label htmlFor="travel-time">Travel Time</label>
 
-                    <input
-                        type="time"
-                        value={travelTime}
-                        onChange={(e) => setTravelTime(e.target.value)}
-                    />
+                        <input
+                            id="travel-time"
+                            type="time"
+                            value={travelTime}
+                            onChange={(e) => setTravelTime(e.target.value)}
+                        />
 
-                    <button onClick={findSafeRoute}>
-                        Find SafeRoute
-                    </button>
-                </div>
-            </aside>
+                        <button
+                            className="full-width-button primary-button"
+                            onClick={findSafeRoute}
+                        >
+                            🛡️ Find SafeRoute
+                        </button>
+                    </section>
+                </aside>
 
                 <main className="main-panel">
                     <MapContainer
@@ -901,44 +910,72 @@ function App() {
                                             }`}
                                             onClick={() => selectRouteOption(route)}
                                         >
-                                            <div className="route-card-header">
-                                                <div>
-                                                    <h4>{route.label}</h4>
+                                            <div className="route-card-top">
+                                                <div className="route-title-group">
+                                                    <span className="route-number">{index + 1}</span>
 
-                                                    {index === 0 && (
-                                                        <span className="recommended-badge">
-                                            Safest Route
-                                        </span>
-                                                    )}
+                                                    <div>
+                                                        <h4>{route.label}</h4>
+
+                                                        {index === 0 && (
+                                                            <span className="recommended-badge">
+                    Safest Route
+                </span>
+                                                        )}
+                                                    </div>
                                                 </div>
 
                                                 <div className="route-score">
-                                                    <strong>
-                                                        {route.safetyScore}
-                                                    </strong>
+                                                    <strong>{route.safetyScore}</strong>
                                                     <span>/100</span>
                                                 </div>
                                             </div>
 
-                                            <div className="route-card-stats">
-                                <span>
-                                    🚶 {route.distanceMiles} mi
-                                </span>
-
+                                            <div className="route-rating">
+                                                {"★".repeat(
+                                                    Math.max(1, Math.round(route.safetyScore / 20))
+                                                )}
                                                 <span>
-                                    ⏱️ {route.durationMinutes} min
-                                </span>
-
-                                                <span>
-                                    🚔 -{route.crimePenalty} risk
-                                </span>
+        {"☆".repeat(
+            5 - Math.max(1, Math.round(route.safetyScore / 20))
+        )}
+    </span>
                                             </div>
 
-                                            {selectedRouteId === route.id && (
-                                                <p className="selected-route-label">
-                                                    ✓ Currently selected
-                                                </p>
-                                            )}
+                                            <div className="route-metrics">
+                                                <div>
+                                                    <strong>{route.distanceMiles}</strong>
+                                                    <span>miles</span>
+                                                </div>
+
+                                                <div>
+                                                    <strong>{route.durationMinutes}</strong>
+                                                    <span>minutes</span>
+                                                </div>
+
+                                                <div>
+                                                    <strong>{route.crimePenalty}</strong>
+                                                    <span>risk penalty</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="route-highlights">
+    <span>
+        {route.crimePenalty <= 10
+            ? "✓ Lower crime exposure"
+            : "• Moderate crime exposure"}
+    </span>
+
+                                                <span>
+        ✓ {route.nearbySpots.length} SafeSpots nearby
+    </span>
+
+                                                {selectedRouteId === route.id && (
+                                                    <span className="selected-route-label">
+            ✓ Currently selected
+        </span>
+                                                )}
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -946,39 +983,108 @@ function App() {
 
                             {scoreExplanation && (
                                 <div className="score-breakdown">
-                                    <h4>Why this score?</h4>
+                                    <div className="score-breakdown-header">
+                                        <h4>Why this score?</h4>
+                                        <span>Route safety factors</span>
+                                    </div>
 
-                                    <p>
-                                        🚔 Police Protection:{" "}
-                                        {scoreExplanation.hasPolice ? "✓" : "✗"}
-                                    </p>
+                                    <div className="score-factor-grid">
+                                        <div
+                                            className={`score-factor ${
+                                                scoreExplanation.hasPolice ? "positive" : "negative"
+                                            }`}
+                                        >
+                                            <span>🚔</span>
+                                            <div>
+                                                <strong>Police Protection</strong>
+                                                <small>
+                                                    {scoreExplanation.hasPolice
+                                                        ? "Available nearby"
+                                                        : "Not found nearby"}
+                                                </small>
+                                            </div>
+                                        </div>
 
-                                    <p>
-                                        🏥 Medical Access:{" "}
-                                        {scoreExplanation.hasHospital ? "✓" : "✗"}
-                                    </p>
+                                        <div
+                                            className={`score-factor ${
+                                                scoreExplanation.hasHospital ? "positive" : "negative"
+                                            }`}
+                                        >
+                                            <span>🏥</span>
+                                            <div>
+                                                <strong>Medical Access</strong>
+                                                <small>
+                                                    {scoreExplanation.hasHospital
+                                                        ? "Hospital nearby"
+                                                        : "No hospital nearby"}
+                                                </small>
+                                            </div>
+                                        </div>
 
-                                    <p>
-                                        🏠 Shelter Nearby:{" "}
-                                        {scoreExplanation.hasShelter ? "✓" : "✗"}
-                                    </p>
+                                        <div
+                                            className={`score-factor ${
+                                                scoreExplanation.hasShelter ? "positive" : "negative"
+                                            }`}
+                                        >
+                                            <span>🏠</span>
+                                            <div>
+                                                <strong>Shelter Access</strong>
+                                                <small>
+                                                    {scoreExplanation.hasShelter
+                                                        ? "Shelter nearby"
+                                                        : "No shelter nearby"}
+                                                </small>
+                                            </div>
+                                        </div>
 
-                                    <p>
-                                        📚 Public Safe Spaces:{" "}
-                                        {scoreExplanation.hasLibrary ? "✓" : "✗"}
-                                    </p>
+                                        <div
+                                            className={`score-factor ${
+                                                scoreExplanation.hasLibrary ? "positive" : "negative"
+                                            }`}
+                                        >
+                                            <span>📚</span>
+                                            <div>
+                                                <strong>Public Safe Space</strong>
+                                                <small>
+                                                    {scoreExplanation.hasLibrary
+                                                        ? "Library nearby"
+                                                        : "No library nearby"}
+                                                </small>
+                                            </div>
+                                        </div>
 
-                                    <p>
-                                        🌟 Diverse Resources:{" "}
-                                        {scoreExplanation.diverseResources
-                                            ? "✓"
-                                            : "✗"}
-                                    </p>
+                                        <div
+                                            className={`score-factor ${
+                                                scoreExplanation.diverseResources ? "positive" : "negative"
+                                            }`}
+                                        >
+                                            <span>🌟</span>
+                                            <div>
+                                                <strong>Resource Variety</strong>
+                                                <small>
+                                                    {scoreExplanation.diverseResources
+                                                        ? "Multiple resource types"
+                                                        : "Limited resource variety"}
+                                                </small>
+                                            </div>
+                                        </div>
 
-                                    <p>
-                                        🚶 Short Walking Distance:{" "}
-                                        {scoreExplanation.shortWalk ? "✓" : "✗"}
-                                    </p>
+                                        <div
+                                            className={`score-factor ${
+                                                scoreExplanation.shortWalk ? "positive" : "negative"
+                                            }`}
+                                        >
+                                            <span>🚶</span>
+                                            <div>
+                                                <strong>Walking Distance</strong>
+                                                <small>
+                                                    {scoreExplanation.shortWalk
+                                                        ? "Short walking route"
+                                                        : "Longer walking route"}
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
 
@@ -989,29 +1095,43 @@ function App() {
 
                             {nearbyRouteSpots.length > 0 && (
                                 <div className="nearby-route-spots">
-                                    <h4>SafeSpots Along This Route</h4>
+                                    <h4>🛡 SafeSpots Along This Route</h4>
 
-                                    {nearbyRouteSpots.map((spot) => (
-                                        <div
-                                            className="nearby-route-spot"
-                                            key={spot.id}
-                                        >
-                                            <strong>{spot.name}</strong>
+                                    <div className="nearby-route-grid">
+                                        {nearbyRouteSpots.map((spot) => (
+                                            <article
+                                                className="nearby-route-card"
+                                                key={spot.id}
+                                            >
+                                                <div className="nearby-route-top">
 
-                                            <p>
-                                                {spot.type} • Safety Score:{" "}
-                                                {spot.safetyScore}
-                                            </p>
+                                                    <div>
+                                                        <strong>{spot.name}</strong>
 
-                                            <p className="safety-badge">
-                                                {getSafetyBadge(spot.safetyScore)}
-                                            </p>
+                                                        <p>
+                                                            {spot.type}
+                                                        </p>
+                                                    </div>
 
-                                            <button onClick={() => loadRoute(spot)}>
-                                                Route Here
-                                            </button>
-                                        </div>
-                                    ))}
+                                                    <span className="route-score-mini">
+                        {spot.safetyScore}
+                    </span>
+
+                                                </div>
+
+                                                <div className="safety-badge">
+                                                    {getSafetyBadge(spot.safetyScore)}
+                                                </div>
+
+                                                <button
+                                                    onClick={() => loadRoute(spot)}
+                                                >
+                                                    Route Here
+                                                </button>
+
+                                            </article>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 
@@ -1031,33 +1151,100 @@ function App() {
                 </main>
             </div>
 
-            <div className="crisis-connect">
-                <h2>CrisisConnect</h2>
+            <section className="crisis-connect">
+                <div className="crisis-header">
+                    <div>
+                        <h2>☎ CrisisConnect</h2>
+                        <p>Immediate support and emergency resources</p>
+                    </div>
 
-                <p>National Human Trafficking Hotline:</p>
-                <p>1-888-373-7888</p>
-
-                <p>Emergency:</p>
-                <p>911</p>
-
-                <p>NYC Domestic Violence Hotline:</p>
-                <p>1-800-621-HOPE</p>
-            </div>
-
-            <h2>Top Recommended Safe Spots</h2>
-            {safeSpots
-                .slice(0, 20).map((spot) => (
-                <div className="card" key={spot.id}>
-                    <h2>{spot.name}</h2>
-                    <p>{spot.type}</p>
-                    <p>{spot.city}</p>
-                    <p>Safety Score: {spot.safetyScore}</p>
-
-                    <button onClick={() => loadRoute(spot)}>
-                        Route Me Here
-                    </button>
+                    <span>24/7</span>
                 </div>
-            ))}
+
+                <div className="crisis-resource-grid">
+                    <article className="crisis-resource emergency-resource">
+                        <span className="crisis-resource-icon">🚨</span>
+
+                        <div>
+                            <strong>Emergency</strong>
+                            <p>911</p>
+                        </div>
+
+                        <a href="tel:911">Call</a>
+                    </article>
+
+                    <article className="crisis-resource">
+                        <span className="crisis-resource-icon">🛡️</span>
+
+                        <div>
+                            <strong>Human Trafficking Hotline</strong>
+                            <p>1-888-373-7888</p>
+                        </div>
+
+                        <a href="tel:18883737888">Call</a>
+                    </article>
+
+                    <article className="crisis-resource">
+                        <span className="crisis-resource-icon">💜</span>
+
+                        <div>
+                            <strong>NYC Domestic Violence Hotline</strong>
+                            <p>1-800-621-HOPE</p>
+                        </div>
+
+                        <a href="tel:18006214673">Call</a>
+                    </article>
+                </div>
+            </section>
+
+            <section className="recommended-spots">
+                <div className="recommended-spots-header">
+                    <div>
+                        <h2>🛡️ Top Recommended Safe Spots</h2>
+                        <p>High-safety locations currently shown on the map</p>
+                    </div>
+
+                    <span>{safeSpots.length} available</span>
+                </div>
+
+                <div className="recommended-spots-grid">
+                    {safeSpots.slice(0, 6).map((spot) => (
+                        <article className="safe-spot-card" key={spot.id}>
+                            <div className="safe-spot-card-top">
+                                <div className="safe-spot-icon">
+                                    {spot.type === "Hospital"
+                                        ? "🏥"
+                                        : spot.type === "Police" ||
+                                        spot.type === "Police Station"
+                                            ? "🚔"
+                                            : spot.type === "Shelter"
+                                                ? "🏠"
+                                                : "📚"}
+                                </div>
+
+                                <div className="safe-spot-score">
+                                    <strong>{spot.safetyScore}</strong>
+                                    <span>/100</span>
+                                </div>
+                            </div>
+
+                            <h3>{spot.name}</h3>
+
+                            <p className="safe-spot-type">
+                                {spot.type} • {spot.city}
+                            </p>
+
+                            <p className="safe-spot-badge">
+                                {getSafetyBadge(spot.safetyScore)}
+                            </p>
+
+                            <button onClick={() => loadRoute(spot)}>
+                                Route Me Here
+                            </button>
+                        </article>
+                    ))}
+                </div>
+            </section>
         </div>
     );
 }
