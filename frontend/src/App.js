@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import "./App.css";
 import "leaflet/dist/leaflet.css";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";import L from "leaflet";
@@ -42,16 +42,36 @@ function App() {
     const [locationStatus, setLocationStatus] = useState("");
     const [selectedSafeSpot, setSelectedSafeSpot] = useState(null);
     const [manualLocation, setManualLocation] = useState("");
+    const [locationSuggestions, setLocationSuggestions] = useState([]);
     const [routeCoordinates, setRouteCoordinates] = useState([]);
     const [routeDistance, setRouteDistance] = useState(null);
     const [routeDuration, setRouteDuration] = useState(null);
     const [destinationInput, setDestinationInput] = useState("");
+    const [destinationSuggestions, setDestinationSuggestions] = useState([]);
     const [travelTime, setTravelTime] = useState("18:00");
     const [safeRouteScore, setSafeRouteScore] = useState(null);
     const [nearbyRouteSpots, setNearbyRouteSpots] = useState([]);
     const [scoreExplanation, setScoreExplanation] = useState(null);
     const [routeOptions, setRouteOptions] = useState([]);
     const [selectedRouteId, setSelectedRouteId] = useState(null);
+    const locationSearchTimer = useRef(null);
+    const destinationSearchTimer = useRef(null);
+
+
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (!event.target.closest(".autocomplete-wrapper")) {
+                setLocationSuggestions([]);
+                setDestinationSuggestions([]);
+            }
+        }
+
+        document.addEventListener("mousedown", handleClickOutside);
+
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
 
     const hospitalIcon = new L.Icon({
         iconUrl: hospitalIconImage,
@@ -161,6 +181,47 @@ function App() {
             console.error("Reverse geocoding failed:", error);
 
             return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+        }
+    }
+
+    async function fetchLocationSuggestions(query) {
+        if (!query || query.trim().length < 3) {
+            return [];
+        }
+
+        try {
+            const apiKey =
+                "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImMwZDRmYTM3NDQyNzRjODc4NTBkY2M5ZTIwNjZhZDM0IiwiaCI6Im11cm11cjY0In0=";
+
+            const response = await fetch(
+                `https://api.openrouteservice.org/geocode/autocomplete` +
+                `?api_key=${apiKey}` +
+                `&text=${encodeURIComponent(query)}` +
+                `&boundary.country=US` +
+                `&boundary.rect.min_lon=-74.2591` +
+                `&boundary.rect.min_lat=40.4774` +
+                `&boundary.rect.max_lon=-73.7004` +
+                `&boundary.rect.max_lat=40.9176`
+            );
+
+            if (!response.ok) {
+                throw new Error("Autocomplete request failed.");
+            }
+
+            const data = await response.json();
+
+            if (!data.features || !Array.isArray(data.features)) {
+                return [];
+            }
+
+            return data.features.slice(0, 10).map((feature) => ({
+                label: feature.properties.label,
+                latitude: feature.geometry.coordinates[1],
+                longitude: feature.geometry.coordinates[0]
+            }));
+        } catch (error) {
+            console.error("Autocomplete failed:", error);
+            return [];
         }
     }
 
@@ -359,6 +420,12 @@ function App() {
                 return latDiff < 0.005 && lonDiff < 0.005;
             })
         );
+    }
+
+    function isNightTime(time) {
+        const hour = Number(time.split(":")[0]);
+
+        return hour >= 19 || hour < 6;
     }
 
     function adjustSafetyForTime(score, travelTime) {
@@ -745,13 +812,61 @@ function App() {
                     <section className="sidebar-section">
                         <label htmlFor="manual-location">Manual Location</label>
 
-                        <input
-                            id="manual-location"
-                            type="text"
-                            placeholder="Enter your starting location"
-                            value={manualLocation}
-                            onChange={(e) => setManualLocation(e.target.value)}
-                        />
+                        <div className="autocomplete-wrapper">
+
+                            <input
+                                type="text"
+                                value={manualLocation}
+                                onChange={(e) => {
+                                    const value = e.target.value;
+
+                                    setManualLocation(value);
+
+                                    clearTimeout(locationSearchTimer.current);
+
+                                    if (value.trim().length < 3) {
+                                        setLocationSuggestions([]);
+                                        return;
+                                    }
+
+                                    locationSearchTimer.current = setTimeout(async () => {
+                                        const suggestions = await fetchLocationSuggestions(value);
+                                        setLocationSuggestions(suggestions);
+                                    }, 300);
+                                }}
+                                placeholder="Enter your location"
+                            />
+
+                            {locationSuggestions.length > 0 && (
+                                <div className="autocomplete-dropdown">
+                                    {locationSuggestions.map((suggestion, index) => (
+                                        <button
+                                            key={index}
+                                            type="button"
+                                            className="autocomplete-option"
+                                            onClick={() => {
+                                                setManualLocation(suggestion.label);
+                                                setUserLocation([
+                                                    suggestion.latitude,
+                                                    suggestion.longitude
+                                                ]);
+                                                setMapCenter([
+                                                    suggestion.latitude,
+                                                    suggestion.longitude
+                                                ]);
+                                                setLocationSuggestions([]);
+                                                setLocationStatus(
+                                                    `Using location: ${suggestion.label}`
+                                                );
+                                            }}
+                                        >
+                                            📍 {suggestion.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                        </div>
 
                         <button
                             className="full-width-button secondary-button"
@@ -766,13 +881,51 @@ function App() {
 
                         <label htmlFor="destination">Destination</label>
 
-                        <input
-                            id="destination"
-                            type="text"
-                            placeholder="Enter destination"
-                            value={destinationInput}
-                            onChange={(e) => setDestinationInput(e.target.value)}
-                        />
+                        <div className="autocomplete-wrapper">
+
+                            <input
+                                id="destination"
+                                type="text"
+                                placeholder="Enter destination"
+                                value={destinationInput}
+                                onChange={(e) => {
+                                    const value = e.target.value;
+
+                                    setDestinationInput(value);
+
+                                    clearTimeout(destinationSearchTimer.current);
+
+                                    if (value.trim().length < 3) {
+                                        setDestinationSuggestions([]);
+                                        return;
+                                    }
+
+                                    destinationSearchTimer.current = setTimeout(async () => {
+                                        const suggestions = await fetchLocationSuggestions(value);
+                                        setDestinationSuggestions(suggestions);
+                                    }, 300);
+                                }}
+                            />
+
+                            {destinationSuggestions.length > 0 && (
+                                <div className="autocomplete-dropdown">
+                                    {destinationSuggestions.map((suggestion, index) => (
+                                        <button
+                                            key={index}
+                                            type="button"
+                                            className="autocomplete-option"
+                                            onClick={() => {
+                                                setDestinationInput(suggestion.label);
+                                                setDestinationSuggestions([]);
+                                            }}
+                                        >
+                                            📍 {suggestion.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                        </div>
 
                         <label htmlFor="travel-time">Travel Time</label>
 
@@ -782,6 +935,11 @@ function App() {
                             value={travelTime}
                             onChange={(e) => setTravelTime(e.target.value)}
                         />
+                        {isNightTime(travelTime) && (
+                            <div className="night-commute-message">
+                                🌙 NightCommute active — nighttime safety factors applied
+                            </div>
+                        )}
 
                         <button
                             className="full-width-button primary-button"
@@ -793,6 +951,19 @@ function App() {
                 </aside>
 
                 <main className="main-panel">
+                    <div
+                        className={
+                            isNightTime(travelTime)
+                                ? "map-wrapper night-map"
+                                : "map-wrapper"
+                        }
+                    >
+                        {isNightTime(travelTime) && (
+                            <div className="night-map-badge">
+                                🌙 NightCommute
+                            </div>
+                        )}
+
                     <MapContainer
                         center={mapCenter}
                         zoom={12}
@@ -849,6 +1020,8 @@ function App() {
                             </Marker>
                         ))}
                     </MapContainer>
+                    </div>
+
 
                     {selectedSafeSpot && (
                         <div className="selected-route">
