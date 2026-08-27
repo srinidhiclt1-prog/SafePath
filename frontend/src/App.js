@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import "./App.css";
 import "leaflet/dist/leaflet.css";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";import L from "leaflet";
+import { MapContainer, TileLayer, Marker, Circle, Popup, Polyline, useMap } from "react-leaflet";import L from "leaflet";
 import hospitalIconImage from "./assets/hospital.png";
 import policeIconImage from "./assets/police.png";
 import libraryIconImage from "./assets/library.png";
@@ -56,7 +56,7 @@ function App() {
     const [selectedRouteId, setSelectedRouteId] = useState(null);
     const locationSearchTimer = useRef(null);
     const destinationSearchTimer = useRef(null);
-
+    const [nightRiskPoints, setNightRiskPoints] = useState([]);
 
     useEffect(() => {
         function handleClickOutside(event) {
@@ -428,6 +428,28 @@ function App() {
         return hour >= 19 || hour < 6;
     }
 
+    function getTimeSafetyScore(travelTime) {
+        const hour = Number(travelTime.split(":")[0]);
+
+        if (hour >= 6 && hour < 18) {
+            return 100;
+        }
+
+        if (hour >= 18 && hour < 21) {
+            return 85;
+        }
+
+        if (hour >= 21 && hour < 24) {
+            return 60;
+        }
+
+        if (hour >= 0 && hour < 5) {
+            return 35;
+        }
+
+        return 65;
+    }
+
     function adjustSafetyForTime(score, travelTime) {
         const hour = Number(travelTime.split(":")[0]);
 
@@ -563,6 +585,12 @@ function App() {
                     })
                 );
 
+                const riskPoints = samplePoints.map((point, index) => ({
+                    latitude: point[0],
+                    longitude: point[1],
+                    crimeCount: crimeCounts[index]
+                }));
+
                 const averageCrimeCount =
                     crimeCounts.reduce((total, count) => total + count, 0) /
                     crimeCounts.length;
@@ -578,7 +606,8 @@ function App() {
                     qualityBonus,
                     diversityBonus,
                     distancePenalty,
-                    averageCrimeCount
+                    averageCrimeCount,
+                    riskPoints
                 };
             })
         );
@@ -633,7 +662,8 @@ function App() {
                 durationMinutes: route.durationMinutes,
                 nearbySpots: route.nearbySpots,
                 safetyScore: Math.round(score),
-                crimePenalty
+                crimePenalty,
+                riskPoints: route.riskPoints
             };
         });
 
@@ -645,6 +675,7 @@ function App() {
             }));
 
         const bestRoute = sortedRoutes[0];
+        console.log("Night risk points:", bestRoute.riskPoints);
 
         setRouteOptions(sortedRoutes);
         setSelectedRouteId(bestRoute.id);
@@ -652,6 +683,7 @@ function App() {
         setRouteDuration(bestRoute.durationMinutes);
         setSafeRouteScore(bestRoute.safetyScore);
         setNearbyRouteSpots(bestRoute.nearbySpots);
+        setNightRiskPoints(bestRoute.riskPoints);
 
         const bestUniqueTypes = new Set(bestRoute.nearbySpots.map((spot) => spot.type));
 
@@ -683,6 +715,7 @@ function App() {
         setRouteDuration(route.durationMinutes);
         setSafeRouteScore(route.safetyScore);
         setNearbyRouteSpots(route.nearbySpots);
+        setNightRiskPoints(route.riskPoints);
 
         const selectedUniqueTypes = new Set(
             route.nearbySpots.map((spot) => spot.type)
@@ -977,6 +1010,26 @@ function App() {
                         <RecenterMap center={mapCenter} />
 
                         <FitMapToRoute routeCoordinates={routeCoordinates} />
+
+                        {isNightTime(travelTime) &&
+                            nightRiskPoints.map((point, index) => (
+                                <Circle
+                                    key={index}
+                                    center={[point.latitude, point.longitude]}
+                                    radius={120}
+                                    pathOptions={{
+                                        fillOpacity: 0.22,
+                                        opacity: 0.55,
+                                        weight: 2
+                                    }}
+                                >
+                                    <Popup>
+                                        <strong>NightCommute Risk Sample</strong>
+                                        <br />
+                                        Nearby crime count: {point.crimeCount}
+                                    </Popup>
+                                </Circle>
+                            ))}
 
                         {userLocation && (
                             <Marker position={userLocation}>
