@@ -36,6 +36,7 @@ function RecenterMap({ center }) {
 function App() {
 
     const [safeSpots, setSafeSpots] = useState([]);
+    const [allSafeSpots, setAllSafeSpots] = useState([]);
     const [city, setCity] = useState("");
     const [mapCenter, setMapCenter] = useState([40.7128, -74.0060]);
     const [userLocation, setUserLocation] = useState(null);
@@ -57,6 +58,7 @@ function App() {
     const locationSearchTimer = useRef(null);
     const destinationSearchTimer = useRef(null);
     const [nightRiskPoints, setNightRiskPoints] = useState([]);
+    const [selectedDestination, setSelectedDestination] = useState(null);
 
     useEffect(() => {
         function handleClickOutside(event) {
@@ -107,8 +109,16 @@ function App() {
         fetch("http://localhost:8080/safespots")
             .then(response => response.json())
             .then(data => {
-                console.log(data);
-                setSafeSpots(Array.isArray(data) ? data : []);
+                const spots = Array.isArray(data) ? data : [];
+
+                console.log("All SafeSpots:", spots);
+                console.log(
+                    "SafeSpot types:",
+                    [...new Set(spots.map((spot) => spot.type))]
+                );
+
+                setSafeSpots(spots);
+                setAllSafeSpots(spots);
             });
     }, []);
 
@@ -409,18 +419,119 @@ function App() {
     }
 
     function getSafeSpotsNearRoute(routeCoordinates) {
-        return safeSpots.filter((spot) =>
-            routeCoordinates.some((coord) => {
-                const routeLat = coord[0];
-                const routeLon = coord[1];
+        const resourceRadiusMeters = 500;
 
-                const latDiff = Math.abs(routeLat - spot.latitude);
-                const lonDiff = Math.abs(routeLon - spot.longitude);
+        return allSafeSpots.filter((spot) => {
+            const spotCoordinates = [
+                Number(spot.latitude),
+                Number(spot.longitude)
+            ];
 
-                return latDiff < 0.005 && lonDiff < 0.005;
-            })
-        );
+            return routeCoordinates.some((routePoint) => {
+                const distance = getDistanceMeters(
+                    routePoint,
+                    spotCoordinates
+                );
+
+                return distance <= resourceRadiusMeters;
+            });
+        });
     }
+
+    function getDistanceMeters(pointA, pointB) {
+        const [lat1, lon1] = pointA;
+        const [lat2, lon2] = pointB;
+
+        const earthRadius = 6371000;
+
+        const toRadians = (degrees) =>
+            degrees * Math.PI / 180;
+
+        const latDifference = toRadians(lat2 - lat1);
+        const lonDifference = toRadians(lon2 - lon1);
+
+        const a =
+            Math.sin(latDifference / 2) ** 2 +
+            Math.cos(toRadians(lat1)) *
+            Math.cos(toRadians(lat2)) *
+            Math.sin(lonDifference / 2) ** 2;
+
+        const c =
+            2 * Math.atan2(
+                Math.sqrt(a),
+                Math.sqrt(1 - a)
+            );
+
+        return earthRadius * c;
+    }
+
+    function getRouteSamplePoints(coordinates) {
+        if (!coordinates || coordinates.length < 2) {
+            return coordinates || [];
+        }
+
+        const segmentDistances = [];
+        let totalDistance = 0;
+
+        for (let i = 1; i < coordinates.length; i++) {
+            const distance = getDistanceMeters(
+                coordinates[i - 1],
+                coordinates[i]
+            );
+
+            segmentDistances.push(distance);
+            totalDistance += distance;
+        }
+
+        const sampleFractions = [
+            0.10,
+            0.30,
+            0.50,
+            0.70,
+            0.90
+        ];
+
+        return sampleFractions.map((fraction) => {
+            const targetDistance =
+                totalDistance * fraction;
+
+            let distanceTravelled = 0;
+
+            for (let i = 1; i < coordinates.length; i++) {
+                const segmentDistance =
+                    segmentDistances[i - 1];
+
+                if (
+                    distanceTravelled + segmentDistance >=
+                    targetDistance
+                ) {
+                    const remainingDistance =
+                        targetDistance - distanceTravelled;
+
+                    const ratio =
+                        remainingDistance / segmentDistance;
+
+                    const start = coordinates[i - 1];
+                    const end = coordinates[i];
+
+                    const latitude =
+                        start[0] +
+                        (end[0] - start[0]) * ratio;
+
+                    const longitude =
+                        start[1] +
+                        (end[1] - start[1]) * ratio;
+
+                    return [latitude, longitude];
+                }
+
+                distanceTravelled += segmentDistance;
+            }
+
+            return coordinates[coordinates.length - 1];
+        });
+    }
+
 
     function isNightTime(time) {
         const hour = Number(time.split(":")[0]);
@@ -449,6 +560,87 @@ function App() {
 
         return 65;
     }
+
+    function getRouteExposureScore(durationMinutes) {
+        if (durationMinutes <= 10) {
+            return 100;
+        }
+
+        if (durationMinutes <= 20) {
+            return 90;
+        }
+
+        if (durationMinutes <= 30) {
+            return 80;
+        }
+
+        if (durationMinutes <= 45) {
+            return 65;
+        }
+
+        if (durationMinutes <= 60) {
+            return 50;
+        }
+
+        return 35;
+    }
+
+    function getResourceSafetyScore(nearbySpots) {
+        const resourceTypes = new Set(
+            nearbySpots.map((spot) => spot.type)
+        );
+
+        let score = 0;
+
+        if (
+            resourceTypes.has("Police") ||
+            resourceTypes.has("Police Station")
+        ) {
+            score += 35;
+        }
+
+        if (resourceTypes.has("Hospital")) {
+            score += 30;
+        }
+
+        if (resourceTypes.has("Shelter")) {
+            score += 20;
+        }
+
+        if (resourceTypes.has("Library")) {
+            score += 15;
+        }
+
+        return Math.min(100, score);
+    }
+
+    function getCrimeSafetyScore(weightedExposure) {
+        const lowReference = 500;
+        const highReference = 8000;
+
+        if (weightedExposure <= lowReference) {
+            return 95;
+        }
+
+        if (weightedExposure >= highReference) {
+            return 10;
+        }
+
+        const logExposure = Math.log1p(weightedExposure);
+        const logLow = Math.log1p(lowReference);
+        const logHigh = Math.log1p(highReference);
+
+        const normalizedRisk =
+            (logExposure - logLow) /
+            (logHigh - logLow);
+
+        const score =
+            95 - (normalizedRisk * 85);
+
+        return Math.round(score);
+    }
+
+
 
     function adjustSafetyForTime(score, travelTime) {
         const hour = Number(travelTime.split(":")[0]);
@@ -537,44 +729,19 @@ function App() {
                     (a, b) => b.safetyScore - a.safetyScore
                 );
 
-                const typeWeights = {
-                    Police: 20,
-                    "Police Station": 20,
-                    Hospital: 18,
-                    Shelter: 15,
-                    Library: 8
-                };
-
-                const typeBonus = nearbySpots.reduce((total, spot) => {
-                    return total + (typeWeights[spot.type] || 5);
-                }, 0);
-
-                const qualityBonus = nearbySpots.reduce((total, spot) => {
-                    return total + ((spot.safetyScore || 0) / 100) * 5;
-                }, 0);
-
-                const uniqueTypes = new Set(
-                    nearbySpots.map((spot) => spot.type)
+                console.log(
+                    `Route ${index + 1} nearby SafeSpots:`,
+                    nearbySpots
                 );
-
-                const diversityBonus = uniqueTypes.size * 5;
-                const distancePenalty = distanceMiles * 15;
 
                 // Check crime exposure at 25%, 50%, and 75% of the route.
-                const sampleIndexes = [
-                    Math.floor(coordinates.length * 0.25),
-                    Math.floor(coordinates.length * 0.50),
-                    Math.floor(coordinates.length * 0.75)
-                ];
-
-                const samplePoints = sampleIndexes.map(
-                    (sampleIndex) => coordinates[sampleIndex]
-                );
+                const samplePoints =
+                    getRouteSamplePoints(coordinates);
 
                 const crimeCounts = await Promise.all(
                     samplePoints.map(async (point) => {
                         const crimeResponse = await fetch(
-                            `http://localhost:8080/crimes/nearby?lat=${point[0]}&lon=${point[1]}`
+                            `http://localhost:8080/crimes/exposure?lat=${point[0]}&lon=${point[1]}`
                         );
 
                         if (!crimeResponse.ok) {
@@ -595,6 +762,13 @@ function App() {
                     crimeCounts.reduce((total, count) => total + count, 0) /
                     crimeCounts.length;
 
+                console.log(
+                    `Route ${index + 1} crime samples:`,
+                    crimeCounts,
+                    "average:",
+                    averageCrimeCount
+                );
+
                 return {
                     id: index,
                     label: `Route ${index + 1}`,
@@ -602,57 +776,30 @@ function App() {
                     distanceMiles: distanceMiles.toFixed(2),
                     durationMinutes,
                     nearbySpots,
-                    typeBonus,
-                    qualityBonus,
-                    diversityBonus,
-                    distancePenalty,
                     averageCrimeCount,
                     riskPoints
                 };
             })
         );
 
-// Compare the crime exposure of all candidate routes.
-        const crimeCountsByRoute = preliminaryRoutes.map(
-            (route) => route.averageCrimeCount
-        );
-
-        const minimumCrimeCount = Math.min(...crimeCountsByRoute);
-        const maximumCrimeCount = Math.max(...crimeCountsByRoute);
-
         const routeChoices = preliminaryRoutes.map((route) => {
-            let crimePenalty;
+            const crimeSafetyScore =
+                getCrimeSafetyScore(route.averageCrimeCount);
 
-            if (maximumCrimeCount === minimumCrimeCount) {
-                // True tie: fall back to an absolute crime penalty.
-                crimePenalty = Math.min(
-                    30,
-                    Math.round(Math.sqrt(route.averageCrimeCount) * 0.75)
-                );
-            } else {
-                // Lowest-crime candidate receives 8 points of penalty.
-                // Highest-crime candidate receives 30 points of penalty.
-                const relativeRisk =
-                    (route.averageCrimeCount - minimumCrimeCount) /
-                    (maximumCrimeCount - minimumCrimeCount);
+            const resourceSafetyScore =
+                getResourceSafetyScore(route.nearbySpots);
 
-                crimePenalty = Math.round(8 + relativeRisk * 22);
-            }
+            const exposureSafetyScore =
+                getRouteExposureScore(route.durationMinutes);
 
-            const baseScore = Math.max(
-                0,
-                Math.min(
-                    100,
-                    30
-                    + route.typeBonus
-                    + route.qualityBonus
-                    + route.diversityBonus
-                    - route.distancePenalty
-                    - crimePenalty
-                )
-            );
+            const timeSafetyScore =
+                getTimeSafetyScore(travelTime);
 
-            const score = adjustSafetyForTime(baseScore, travelTime);
+            const finalScore =
+                (crimeSafetyScore * 0.55) +
+                (resourceSafetyScore * 0.25) +
+                (exposureSafetyScore * 0.10) +
+                (timeSafetyScore * 0.10);
 
             return {
                 id: route.id,
@@ -661,8 +808,15 @@ function App() {
                 distanceMiles: route.distanceMiles,
                 durationMinutes: route.durationMinutes,
                 nearbySpots: route.nearbySpots,
-                safetyScore: Math.round(score),
-                crimePenalty,
+
+                safetyScore: Math.round(finalScore),
+
+                crimeSafetyScore,
+                resourceSafetyScore,
+                exposureSafetyScore,
+                timeSafetyScore,
+
+                averageCrimeCount: route.averageCrimeCount,
                 riskPoints: route.riskPoints
             };
         });
@@ -752,7 +906,13 @@ function App() {
             return;
         }
 
-        const destination = await geocodeDestination(destinationInput);
+        let destination;
+
+        if (selectedDestination) {
+            destination = selectedDestination;
+        } else {
+            destination = await geocodeDestination(destinationInput);
+        }
 
         if (!destination) {
             return;
@@ -925,6 +1085,7 @@ function App() {
                                     const value = e.target.value;
 
                                     setDestinationInput(value);
+                                    setSelectedDestination(null)
 
                                     clearTimeout(destinationSearchTimer.current);
 
@@ -949,6 +1110,12 @@ function App() {
                                             className="autocomplete-option"
                                             onClick={() => {
                                                 setDestinationInput(suggestion.label);
+
+                                                setSelectedDestination({
+                                                    latitude: suggestion.latitude,
+                                                    longitude: suggestion.longitude
+                                                });
+
                                                 setDestinationSuggestions([]);
                                             }}
                                         >
@@ -1016,17 +1183,17 @@ function App() {
                                 <Circle
                                     key={index}
                                     center={[point.latitude, point.longitude]}
-                                    radius={120}
+                                    radius={500}
                                     pathOptions={{
-                                        fillOpacity: 0.22,
-                                        opacity: 0.55,
-                                        weight: 2
+                                        fillOpacity: 0.08,
+                                        opacity: 0.35,
+                                        weight: 1
                                     }}
                                 >
                                     <Popup>
                                         <strong>NightCommute Risk Sample</strong>
                                         <br />
-                                        Nearby crime count: {point.crimeCount}
+                                        Weighted crime exposure within 500 m: {point.crimeCount}
                                     </Popup>
                                 </Circle>
                             ))}
@@ -1180,16 +1347,18 @@ function App() {
                                                 </div>
 
                                                 <div>
-                                                    <strong>{route.crimePenalty}</strong>
-                                                    <span>risk penalty</span>
+                                                    <strong>{route.crimeSafetyScore}</strong>
+                                                    <span>crime safety</span>
                                                 </div>
                                             </div>
 
                                             <div className="route-highlights">
     <span>
-        {route.crimePenalty <= 10
+        {route.crimeSafetyScore >= 70
             ? "✓ Lower crime exposure"
-            : "• Moderate crime exposure"}
+            : route.crimeSafetyScore >= 40
+                ? "• Moderate crime exposure"
+                : "⚠ Higher crime exposure"}
     </span>
 
                                                 <span>

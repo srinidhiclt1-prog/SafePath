@@ -35,4 +35,12 @@ public class CrimeDataController {
     ) {
         return crimeDataService.getCrimePenalty(lat, lon);
     }
+
+    @GetMapping("/crimes/exposure")
+    public int getWeightedCrimeExposure(
+            @RequestParam double lat,
+            @RequestParam double lon
+    ) {
+        return crimeDataService.getWeightedCrimeExposureNear(lat, lon);
+    }
 }
