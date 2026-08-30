@@ -603,12 +603,16 @@ function App() {
             score += 30;
         }
 
-        if (resourceTypes.has("Shelter")) {
+        if (resourceTypes.has("Safe Transit Hub")) {
             score += 20;
         }
 
-        if (resourceTypes.has("Library")) {
+        if (resourceTypes.has("Shelter")) {
             score += 15;
+        }
+
+        if (resourceTypes.has("Library")) {
+            score += 10;
         }
 
         return Math.min(100, score);
@@ -641,26 +645,6 @@ function App() {
     }
 
 
-
-    function adjustSafetyForTime(score, travelTime) {
-        const hour = Number(travelTime.split(":")[0]);
-
-        if (hour >= 22 || hour < 5) {
-            return Math.max(0, score - 20);
-        }
-
-        if (hour >= 19) {
-            return Math.max(0, score - 10);
-        }
-
-        if (hour >= 6 && hour < 18) {
-            return Math.min(100, score + 3);
-        }
-
-        return score;
-    }
-
-
     function getSafetyBadge(score) {
         if (score >= 95) return "🟢 Very Safe";
         if (score >= 90) return "🟡 Safe";
@@ -683,27 +667,44 @@ function App() {
 
         const apiKey = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImMwZDRmYTM3NDQyNzRjODc4NTBkY2M5ZTIwNjZhZDM0IiwiaCI6Im11cm11cjY0In0=";
 
-        const response = await fetch("https://api.openrouteservice.org/v2/directions/foot-walking/geojson", {
-            method: "POST",
-            headers: {
-                "Authorization": apiKey,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                coordinates: [
-                    [userLocation[1], userLocation[0]],
-                    [spot.longitude, spot.latitude]
-                ],
-                alternative_routes: {
-                    target_count: 3,
-                    weight_factor: 1.4,
-                    share_factor: 0.6
-                }
-            })
+        console.log("ROUTE START:", userLocation);
+
+        console.log("ROUTE DESTINATION:", {
+            name: spot.name,
+            latitude: spot.latitude,
+            longitude: spot.longitude
         });
 
-        const data = await response.json();
+        const response = await fetch(
+            "https://api.openrouteservice.org/v2/directions/foot-walking/geojson",
+            {
+                method: "POST",
 
+                headers: {
+                    "Authorization": apiKey,
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    coordinates: [
+                        [userLocation[1], userLocation[0]],
+                        [spot.longitude, spot.latitude]
+                    ],
+
+                    alternative_routes: {
+                        target_count: 3,
+                        weight_factor: 1.4,
+                        share_factor: 0.6
+                    },
+
+                    options: {
+                        avoid_features: ["ferries"]
+                    }
+                })
+            }
+        );
+
+        const data = await response.json();
 
         console.log("Route API response:", data);
 
@@ -716,6 +717,11 @@ function App() {
         const preliminaryRoutes = await Promise.all(
             data.features.map(async (feature, index) => {
                 const summary = feature.properties.summary;
+
+                console.log(
+                    `Route ${index + 1} raw ORS summary:`,
+                    summary
+                );
 
                 const coordinates = feature.geometry.coordinates.map((coord) => [
                     coord[1],
@@ -839,23 +845,11 @@ function App() {
         setNearbyRouteSpots(bestRoute.nearbySpots);
         setNightRiskPoints(bestRoute.riskPoints);
 
-        const bestUniqueTypes = new Set(bestRoute.nearbySpots.map((spot) => spot.type));
-
         setScoreExplanation({
-            hasPolice: bestRoute.nearbySpots.some(
-                spot => spot.type === "Police" || spot.type === "Police Station"
-            ),
-            hasHospital: bestRoute.nearbySpots.some(
-                spot => spot.type === "Hospital"
-            ),
-            hasShelter: bestRoute.nearbySpots.some(
-                spot => spot.type === "Shelter"
-            ),
-            hasLibrary: bestRoute.nearbySpots.some(
-                spot => spot.type === "Library"
-            ),
-            diverseResources: bestUniqueTypes.size >= 3,
-            shortWalk: Number(bestRoute.distanceMiles) <= 1
+            crimeSafetyScore: bestRoute.crimeSafetyScore,
+            resourceSafetyScore: bestRoute.resourceSafetyScore,
+            exposureSafetyScore: bestRoute.exposureSafetyScore,
+            timeSafetyScore: bestRoute.timeSafetyScore
         });
 
         setRouteCoordinates(bestRoute.coordinates);
@@ -871,27 +865,11 @@ function App() {
         setNearbyRouteSpots(route.nearbySpots);
         setNightRiskPoints(route.riskPoints);
 
-        const selectedUniqueTypes = new Set(
-            route.nearbySpots.map((spot) => spot.type)
-        );
-
         setScoreExplanation({
-            hasPolice: route.nearbySpots.some(
-                (spot) =>
-                    spot.type === "Police" ||
-                    spot.type === "Police Station"
-            ),
-            hasHospital: route.nearbySpots.some(
-                (spot) => spot.type === "Hospital"
-            ),
-            hasShelter: route.nearbySpots.some(
-                (spot) => spot.type === "Shelter"
-            ),
-            hasLibrary: route.nearbySpots.some(
-                (spot) => spot.type === "Library"
-            ),
-            diverseResources: selectedUniqueTypes.size >= 3,
-            shortWalk: Number(route.distanceMiles) <= 1
+            crimeSafetyScore: route.crimeSafetyScore,
+            resourceSafetyScore: route.resourceSafetyScore,
+            exposureSafetyScore: route.exposureSafetyScore,
+            timeSafetyScore: route.timeSafetyScore
         });
     }
 
@@ -1384,101 +1362,47 @@ function App() {
                                     </div>
 
                                     <div className="score-factor-grid">
-                                        <div
-                                            className={`score-factor ${
-                                                scoreExplanation.hasPolice ? "positive" : "negative"
-                                            }`}
-                                        >
-                                            <span>🚔</span>
+
+                                        <div className="score-factor">
+                                            <span>🛡️</span>
                                             <div>
-                                                <strong>Police Protection</strong>
+                                                <strong>Crime Safety</strong>
                                                 <small>
-                                                    {scoreExplanation.hasPolice
-                                                        ? "Available nearby"
-                                                        : "Not found nearby"}
+                                                    {scoreExplanation.crimeSafetyScore}/100 • 55% weight
                                                 </small>
                                             </div>
                                         </div>
 
-                                        <div
-                                            className={`score-factor ${
-                                                scoreExplanation.hasHospital ? "positive" : "negative"
-                                            }`}
-                                        >
-                                            <span>🏥</span>
+                                        <div className="score-factor">
+                                            <span>📍</span>
                                             <div>
-                                                <strong>Medical Access</strong>
+                                                <strong>Resource Access</strong>
                                                 <small>
-                                                    {scoreExplanation.hasHospital
-                                                        ? "Hospital nearby"
-                                                        : "No hospital nearby"}
+                                                    {scoreExplanation.resourceSafetyScore}/100 • 25% weight
                                                 </small>
                                             </div>
                                         </div>
 
-                                        <div
-                                            className={`score-factor ${
-                                                scoreExplanation.hasShelter ? "positive" : "negative"
-                                            }`}
-                                        >
-                                            <span>🏠</span>
-                                            <div>
-                                                <strong>Shelter Access</strong>
-                                                <small>
-                                                    {scoreExplanation.hasShelter
-                                                        ? "Shelter nearby"
-                                                        : "No shelter nearby"}
-                                                </small>
-                                            </div>
-                                        </div>
-
-                                        <div
-                                            className={`score-factor ${
-                                                scoreExplanation.hasLibrary ? "positive" : "negative"
-                                            }`}
-                                        >
-                                            <span>📚</span>
-                                            <div>
-                                                <strong>Public Safe Space</strong>
-                                                <small>
-                                                    {scoreExplanation.hasLibrary
-                                                        ? "Library nearby"
-                                                        : "No library nearby"}
-                                                </small>
-                                            </div>
-                                        </div>
-
-                                        <div
-                                            className={`score-factor ${
-                                                scoreExplanation.diverseResources ? "positive" : "negative"
-                                            }`}
-                                        >
-                                            <span>🌟</span>
-                                            <div>
-                                                <strong>Resource Variety</strong>
-                                                <small>
-                                                    {scoreExplanation.diverseResources
-                                                        ? "Multiple resource types"
-                                                        : "Limited resource variety"}
-                                                </small>
-                                            </div>
-                                        </div>
-
-                                        <div
-                                            className={`score-factor ${
-                                                scoreExplanation.shortWalk ? "positive" : "negative"
-                                            }`}
-                                        >
+                                        <div className="score-factor">
                                             <span>🚶</span>
                                             <div>
-                                                <strong>Walking Distance</strong>
+                                                <strong>Route Exposure</strong>
                                                 <small>
-                                                    {scoreExplanation.shortWalk
-                                                        ? "Short walking route"
-                                                        : "Longer walking route"}
+                                                    {scoreExplanation.exposureSafetyScore}/100 • 10% weight
                                                 </small>
                                             </div>
                                         </div>
+
+                                        <div className="score-factor">
+                                            <span>🕒</span>
+                                            <div>
+                                                <strong>Time Safety</strong>
+                                                <small>
+                                                    {scoreExplanation.timeSafetyScore}/100 • 10% weight
+                                                </small>
+                                            </div>
+                                        </div>
+
                                     </div>
                                 </div>
                             )}
