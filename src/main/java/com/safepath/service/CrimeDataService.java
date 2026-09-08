@@ -52,8 +52,18 @@ public class CrimeDataService {
             } else {
                 weightedExposure += count;
             }
+
+            System.out.println(
+                    "Crime category near " + lat + "," + lon +
+                            ": " + category +
+                            " count=" + count
+            );
         }
 
+        System.out.println(
+                "Weighted exposure near " + lat + "," + lon +
+                        " = " + weightedExposure
+        );
         return weightedExposure;
     }
 

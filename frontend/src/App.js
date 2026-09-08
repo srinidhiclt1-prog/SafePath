@@ -777,6 +777,7 @@ function App() {
 
                 return {
                     id: index,
+                    originalRouteNumber: index + 1,
                     label: `Route ${index + 1}`,
                     coordinates,
                     distanceMiles: distanceMiles.toFixed(2),
@@ -809,6 +810,7 @@ function App() {
 
             return {
                 id: route.id,
+                originalRouteNumber: route.originalRouteNumber,
                 label: route.label,
                 coordinates: route.coordinates,
                 distanceMiles: route.distanceMiles,
@@ -833,6 +835,22 @@ function App() {
                 ...route,
                 label: `Route ${index + 1}`
             }));
+
+        sortedRoutes.forEach((route, index) => {
+            console.log(
+                `Displayed Route ${index + 1} came from ORS Route ${route.originalRouteNumber}`,
+                {
+                    safetyScore: route.safetyScore,
+                    crimeSafetyScore: route.crimeSafetyScore,
+                    resourceSafetyScore: route.resourceSafetyScore,
+                    exposureSafetyScore: route.exposureSafetyScore,
+                    timeSafetyScore: route.timeSafetyScore,
+                    nearbySafeSpots: route.nearbySpots.length,
+                    distanceMiles: route.distanceMiles,
+                    durationMinutes: route.durationMinutes
+                }
+            );
+        });
 
         const bestRoute = sortedRoutes[0];
         console.log("Night risk points:", bestRoute.riskPoints);
