@@ -1,70 +1,92 @@
-# Getting Started with Create React App
+# SafePath
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+SafePath is a safety focused navigation application designed to help users compare routes based on more than just speed and distance. The app generates multiple route options, assigns each route a safety score, and helps users identify nearby safety resources while traveling.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+SafePath allows users to:
 
-### `npm start`
+* Enter a starting point and destination
+* View multiple route options
+* Compare routes by safety score, distance, and estimated travel time
+* View nearby SafeSpots such as hospitals, police stations, shelters, and libraries
+* Use current location through browser geolocation
+* Filter SafeSpots by category
+* Sort and compare route options
+* View routes and safety resources on an interactive map
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## Tech Stack
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Frontend
 
-### `npm test`
+* React
+* JavaScript
+* Leaflet
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Backend
 
-### `npm run build`
+* Java
+* Spring Boot
+* H2 Database
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+APIs and Services
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+* OpenRouteService for route generation and mapping data
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## How It Works
 
-### `npm run eject`
+The frontend collects the user’s starting location and destination and sends the request to the Spring Boot backend.
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+The backend communicates with OpenRouteService to retrieve multiple possible routes. SafePath then processes the route information and applies safety related logic to generate a safety score for each option.
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+The processed route data is returned to the React frontend, where users can compare routes based on safety score, distance, and travel time. Leaflet is used to display the routes and nearby SafeSpots on an interactive map.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## Project Structure
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+The project is divided into a Spring Boot backend and React frontend.
 
-## Learn More
+The backend is responsible for API communication, route processing, safety scoring, and application logic.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+The frontend is responsible for user input, displaying route comparisons, handling map interactions, geolocation, and SafeSpot filtering.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Running the Project
 
-### Code Splitting
+### Backend
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+Navigate to the backend directory and start the Spring Boot application.
 
-### Analyzing the Bundle Size
+```bash
+./mvnw spring-boot:run
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+Or run the main Spring Boot application class through your IDE.
 
-### Making a Progressive Web App
+### Frontend
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+Navigate to the frontend directory.
 
-### Advanced Configuration
+Install dependencies:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+```bash
+npm install
+```
 
-### Deployment
+Start the development server:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+```bash
+npm start
+```
 
-### `npm run build` fails to minify
+Make sure the backend is running before requesting routes.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## Current Status
+
+SafePath is currently in active development. Core routing, safety scoring, route comparison, SafeSpot visualization, filtering, and geolocation functionality have been implemented.
+
+Future improvements may include expanded safety data sources, improved scoring logic, additional emergency resource features, and production deployment.
+
+## Why I Built It
+
+I built SafePath because traditional navigation applications usually optimize for speed and distance, but those are not always the only factors people consider when choosing how to travel.
+
+The project gave me experience building a full stack application, integrating external APIs, debugging communication between frontend and backend systems, managing interactive map state, and designing features around a real user problem.
