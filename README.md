@@ -1,92 +1,73 @@
 # SafePath
 
-SafePath is a safety focused navigation application designed to help users compare routes based on more than just speed and distance. The app generates multiple route options, assigns each route a safety score, and helps users identify nearby safety resources while traveling.
+SafePath is a full stack safety focused navigation application that helps users compare routes based on safety, distance, and travel time instead of optimizing only for the fastest route.
 
-## Features
+Users can generate multiple route options, view a safety score for each route, locate nearby SafeSpots such as hospitals, police stations, shelters, and libraries, and explore everything through an interactive map.
 
-SafePath allows users to:
+## Key Features
 
-* Enter a starting point and destination
-* View multiple route options
-* Compare routes by safety score, distance, and estimated travel time
-* View nearby SafeSpots such as hospitals, police stations, shelters, and libraries
-* Use current location through browser geolocation
-* Filter SafeSpots by category
-* Sort and compare route options
-* View routes and safety resources on an interactive map
+* Generates and compares multiple route alternatives
+* Calculates a safety score for each route
+* Displays distance and estimated travel time
+* Finds nearby SafeSpots including hospitals, police stations, shelters, and libraries
+* Supports browser based geolocation
+* Allows users to filter SafeSpots by category
+* Sorts routes based on safety, distance, and travel time
+* Displays routes and resources through an interactive Leaflet map
 
 ## Tech Stack
 
-Frontend
+### Frontend
+React  
+JavaScript  
+Leaflet
 
-* React
-* JavaScript
-* Leaflet
+### Backend
+Java  
+Spring Boot  
+H2 Database
 
-Backend
+### APIs
+OpenRouteService
 
-* Java
-* Spring Boot
-* H2 Database
+## Architecture
 
-APIs and Services
+SafePath uses a React frontend connected to a Spring Boot REST backend.
 
-* OpenRouteService for route generation and mapping data
+When a user enters an origin and destination, the frontend sends the request to the backend. The backend communicates with OpenRouteService to retrieve multiple possible routes and processes the returned geographic data.
 
-## How It Works
+SafePath then applies safety related logic to evaluate the routes and returns the processed results to the frontend. The React application displays each route's safety score, distance, and estimated travel time while Leaflet renders the routes and nearby SafeSpots on an interactive map.
 
-The frontend collects the user’s starting location and destination and sends the request to the Spring Boot backend.
+## What I Built
 
-The backend communicates with OpenRouteService to retrieve multiple possible routes. SafePath then processes the route information and applies safety related logic to generate a safety score for each option.
+I designed and implemented SafePath as a full stack project.
 
-The processed route data is returned to the React frontend, where users can compare routes based on safety score, distance, and travel time. Leaflet is used to display the routes and nearby SafeSpots on an interactive map.
+My work included:
 
-## Project Structure
+* Building REST endpoints with Spring Boot
+* Integrating an external routing API
+* Processing route and geographic data
+* Developing the route safety scoring logic
+* Building the React interface
+* Integrating Leaflet for interactive mapping
+* Implementing geolocation
+* Building SafeSpot filtering and visualization
+* Handling frontend and backend communication
+* Debugging API, geocoding, state management, and integration issues
 
-The project is divided into a Spring Boot backend and React frontend.
+## Technical Challenges
 
-The backend is responsible for API communication, route processing, safety scoring, and application logic.
+One of the biggest challenges was coordinating data across an external routing service, the Spring Boot backend, and the React frontend.
 
-The frontend is responsible for user input, displaying route comparisons, handling map interactions, geolocation, and SafeSpot filtering.
+Route responses had to be transformed into data that could be scored, compared, and correctly rendered on the map. I also worked through issues involving failed API responses, geocoding, frontend state, map rendering, and communication between different parts of the application.
 
-## Running the Project
+Building SafePath gave me experience debugging problems across an entire full stack system rather than working on an isolated component.
+
+## Running SafePath Locally
 
 ### Backend
 
-Navigate to the backend directory and start the Spring Boot application.
+From the project root:
 
 ```bash
 ./mvnw spring-boot:run
-```
-
-Or run the main Spring Boot application class through your IDE.
-
-### Frontend
-
-Navigate to the frontend directory.
-
-Install dependencies:
-
-```bash
-npm install
-```
-
-Start the development server:
-
-```bash
-npm start
-```
-
-Make sure the backend is running before requesting routes.
-
-## Current Status
-
-SafePath is currently in active development. Core routing, safety scoring, route comparison, SafeSpot visualization, filtering, and geolocation functionality have been implemented.
-
-Future improvements may include expanded safety data sources, improved scoring logic, additional emergency resource features, and production deployment.
-
-## Why I Built It
-
-I built SafePath because traditional navigation applications usually optimize for speed and distance, but those are not always the only factors people consider when choosing how to travel.
-
-The project gave me experience building a full stack application, integrating external APIs, debugging communication between frontend and backend systems, managing interactive map state, and designing features around a real user problem.
