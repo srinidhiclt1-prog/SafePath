@@ -4,6 +4,16 @@ SafePath is a full stack safety focused navigation application that helps users 
 
 Users can generate multiple route options, compare safety scores, locate nearby SafeSpots such as hospitals, police stations, shelters, and libraries, and explore everything through an interactive map.
 
+## Demo
+
+### Route Comparison
+
+![SafePath route comparison](screenshots/route-comparison.png)
+
+### SafeSpots
+
+![SafePath SafeSpots](screenshots/safespots.png)
+
 ## Features
 
 SafePath allows users to:
